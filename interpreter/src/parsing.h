@@ -37,6 +37,7 @@ public:
   BytecodeFile &operator=(BytecodeFile &&other) noexcept;
 
   // Getters
+  // TODO: remove these as they seem to be redundant because of the containers
   uint32_t get_stringtab_size() const { return stringtab_size; }
   uint32_t get_global_area_size() const { return global_area_size; }
   uint32_t get_public_symbols_number() const { return public_symbols_number; }

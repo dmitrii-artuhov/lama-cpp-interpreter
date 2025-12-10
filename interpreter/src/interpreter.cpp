@@ -1,5 +1,6 @@
 #include "parsing.h"
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <string>
 
@@ -29,12 +30,14 @@ int main(int argc, char *argv[]) {
               << std::endl;
     std::cout << "  Global area size: " << bc.get_global_area_size() << " words"
               << std::endl;
+    std::cout << "  Strings loaded: " << bc.get_strings().size() << std::endl;
     std::cout << "  Public symbols: " << bc.get_public_symbols_number()
               << std::endl;
+    for (const auto &[name, offset] : bc.get_public_symbols()) {
+      std::cout << "    0x" << std::hex << std::setw(8) << std::setfill('0')
+                << offset << ": " << name << std::endl;
+    }
     std::cout << "  Bytecode size: " << bc.get_bytecode_size() << " bytes"
-              << std::endl;
-    std::cout << "  Strings loaded: " << bc.get_strings().size() << std::endl;
-    std::cout << "  Public symbols loaded: " << bc.get_public_symbols().size()
               << std::endl;
 
   } catch (const std::exception &e) {

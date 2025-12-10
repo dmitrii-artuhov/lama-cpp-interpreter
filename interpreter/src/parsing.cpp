@@ -46,7 +46,7 @@ BytecodeFile::BytecodeFile(const std::string &file_path)
       continue;
     }
     if (str_ptr + len >= str_end) {
-      break; // Safety check
+      break;
     }
 
     strings[string_index] = std::string(str_ptr, len);

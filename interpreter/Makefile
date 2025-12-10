@@ -27,7 +27,7 @@ TARGET = $(BUILD_DIR)/interpreter
 RUNTIME_LIB = $(RUNTIME_DIR)/runtime.a
 
 # Compiler flags
-CXXFLAGS = -g -fstack-protector-all $(ARCH) -std=c++11 -Wall -Wextra
+CXXFLAGS = -g -fstack-protector-all $(ARCH) -std=c++17 -Wall -Wextra
 CPPFLAGS = -I$(RUNTIME_DIR) -I$(SRC_DIR)
 
 # Default target

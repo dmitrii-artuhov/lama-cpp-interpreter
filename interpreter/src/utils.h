@@ -1,17 +1,19 @@
 #pragma once
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 
 // Helper to read int32 from buffer (little-endian)
-static uint32_t read_int32(const uint8_t *buf) {
-  return static_cast<uint32_t>(buf[0]) | (static_cast<uint32_t>(buf[1]) << 8) |
-         (static_cast<uint32_t>(buf[2]) << 16) |
-         (static_cast<uint32_t>(buf[3]) << 24);
+// Uses reinterpret_cast to read directly from byte buffer
+uint32_t read_int32(const uint8_t *buf) {
+  // Align the buffer pointer and use reinterpret_cast to read as uint32_t
+  // Bytecode format is little-endian (native endian on x86/x64)
+  return *reinterpret_cast<const uint32_t *>(buf);
 }
 
-// Helper to read int32 from file
-static uint32_t read_int32(std::ifstream &file) {
-  uint8_t buf[4];
-  file.read(reinterpret_cast<char *>(buf), 4);
-  return read_int32(buf);
+// Helper to read int32 from file (little-endian)
+uint32_t read_int32(std::ifstream &file) {
+  uint32_t value;
+  file.read(reinterpret_cast<char *>(&value), sizeof(uint32_t));
+  return value;
 }
