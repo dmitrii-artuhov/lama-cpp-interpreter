@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - -I../../runtime #relative to the /src directory
+    - -I.
+    - -std=c++11
+    - -g
+    - -fstack-protector-all
+    - -Wall
+    - -Wextra
+
