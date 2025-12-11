@@ -105,7 +105,6 @@ enum Opcode : uint8_t {
 const char *ops[] = {
     "+", "-", "*", "/", "%", "<", "<=", ">", ">=", "==", "!=", "&&", "!!"};
 
-// Operator functions: aint (void*, void *)
 using binop_fun_ptr = aint (*)(void *, void *);
 
 binop_fun_ptr binop_functions[] = {
@@ -141,11 +140,9 @@ public:
   void interpret() {
     const uint8_t *bytecode_start = bc.get_bytecode();
     ip = bytecode_start;
-    // sp = operands.data();
     do {
       log() << HEX_FMT(ip - bytecode_start, 8) << ": ";
       uint8_t opcode = *ip++;
-      // uint8_t h = (opcode & 0xF0) >> 4;
       uint8_t l = opcode & 0x0F;
 
       switch (opcode) {
@@ -182,12 +179,13 @@ public:
         break;
       }
       case BEGIN_NO_CLOSURE:
-      case BEGIN_WITH_CLOSURE: {
-        int32_t args = ip_int32();
-        int32_t locals = ip_int32();
-        log() << "BEGIN " << args << " " << locals << std::endl;
-        break;
-      }
+        // case BEGIN_WITH_CLOSURE:
+        {
+          int32_t args = ip_int32();
+          int32_t locals = ip_int32();
+          log() << "BEGIN " << args << " " << locals << std::endl;
+          break;
+        }
       case CALL_READ: {
         aint value = read_value();
         log() << "CALL_READ -> " << UNBOX(value) << std::endl;
