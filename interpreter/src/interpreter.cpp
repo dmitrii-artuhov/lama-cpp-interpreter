@@ -141,7 +141,7 @@ public:
     const uint8_t *bytecode_start = bc.get_bytecode();
     ip = bytecode_start;
     do {
-      log() << HEX_FMT(ip - bytecode_start, 8) << ": ";
+      log() << STR_HEX(ip - bytecode_start, 8) << ": ";
       uint8_t opcode = *ip++;
       uint8_t l = opcode & 0x0F;
 
@@ -278,7 +278,10 @@ private:
 
   aint top_aint() { return reinterpret_cast<aint>(top()); }
 
-  aint read_value() { return Lread(); }
+  aint read_value() {
+    std::cout << " ";
+    return Lread();
+  }
 
   void write_value(aint value) { Lwrite(value); }
 
@@ -321,8 +324,10 @@ int main(int argc, char *argv[]) {
     log() << "  Strings loaded: " << bc.get_strings().size() << std::endl;
     log() << "  Public symbols: " << bc.get_public_symbols_number()
           << std::endl;
-    for (const auto &[name, offset] : bc.get_public_symbols()) {
-      log() << "    " << HEX_FMT(offset, 8) << ": " << name << std::endl;
+    for (const auto &symbol : bc.get_public_symbols()) {
+      auto &name = symbol.first;
+      auto offset = symbol.second;
+      log() << "    " << STR_HEX(offset, 8) << ": " << name << std::endl;
     }
     log() << "  Bytecode size: " << bc.get_bytecode_size() << " bytes"
           << std::endl;
