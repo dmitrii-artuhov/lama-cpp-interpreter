@@ -38,7 +38,7 @@ struct InstructionException : public std::runtime_error {
   size_t instruction_number;
 
   InstructionException(const std::string &msg, size_t instruction_number)
-      : std::runtime_error(msg + " at instruction " +
+      : std::runtime_error(msg + " at bytecode position " +
                            STR_HEX(instruction_number, 8)),
         instruction_number(instruction_number) {}
 
