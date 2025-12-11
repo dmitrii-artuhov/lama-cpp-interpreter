@@ -92,8 +92,8 @@ BytecodeFile::BytecodeFile(BytecodeFile &&other) noexcept
       public_symbols_number(other.public_symbols_number),
       strings(std::move(other.strings)),
       public_symbols(std::move(other.public_symbols)),
-      globals(std::move(other.globals)), bytecode(other.bytecode),
-      bytecode_size(other.bytecode_size) {
+      // globals(std::move(other.globals)),
+      bytecode(other.bytecode), bytecode_size(other.bytecode_size) {
   other.bytecode = nullptr;
   other.bytecode_size = 0;
 }
@@ -106,7 +106,7 @@ BytecodeFile &BytecodeFile::operator=(BytecodeFile &&other) noexcept {
     public_symbols_number = other.public_symbols_number;
     strings = std::move(other.strings);
     public_symbols = std::move(other.public_symbols);
-    globals = std::move(other.globals);
+    // globals = std::move(other.globals);
     bytecode = other.bytecode;
     bytecode_size = other.bytecode_size;
     other.bytecode = nullptr;
@@ -123,10 +123,10 @@ const std::unordered_map<std::string, uint32_t> &
 BytecodeFile::get_public_symbols() const {
   return public_symbols;
 }
-const std::unordered_map<std::string, uint32_t> &
-BytecodeFile::get_globals() const {
-  return globals;
-}
+// const std::unordered_map<std::string, uint32_t> &
+// BytecodeFile::get_globals() const {
+//   return globals;
+// }
 
 const uint8_t *BytecodeFile::get_bytecode() const { return bytecode; }
 size_t BytecodeFile::get_bytecode_size() const { return bytecode_size; }

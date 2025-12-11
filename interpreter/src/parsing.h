@@ -22,7 +22,7 @@ private:
 
   // Globals: maps global name to global index
   // TODO: check is that is correct when I reach globals
-  std::unordered_map<std::string, uint32_t> globals;
+  // std::unordered_map<std::string, uint32_t> globals;
 
   // Bytecode data (raw pointer, deleted in destructor)
   uint8_t *bytecode;
@@ -44,7 +44,7 @@ public:
 
   const std::unordered_map<uint32_t, std::string> &get_strings() const;
   const std::unordered_map<std::string, uint32_t> &get_public_symbols() const;
-  const std::unordered_map<std::string, uint32_t> &get_globals() const;
+  // const std::unordered_map<std::string, uint32_t> &get_globals() const;
 
   const uint8_t *get_bytecode() const;
   size_t get_bytecode_size() const;

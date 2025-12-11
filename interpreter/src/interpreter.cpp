@@ -2,9 +2,7 @@
 #include "parsing.h"
 #include "utils.h"
 #include <cstring>
-#include <iomanip>
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <unistd.h>
 
@@ -17,16 +15,14 @@ extern "C" {
 
 extern aint Lread();
 extern void Lwrite(aint value);
+extern aint Ls__Infix_42(void *p, void *q); // *
 }
 
 // Define custom data section boundaries for garbage collector
 void *__start_custom_data;
 void *__stop_custom_data;
 
-#define HEX_FMT(val, width)                                                    \
-  "0x" << std::hex << std::setw(width) << std::setfill('0') << (val)
-
-#define MAX_OPERANDS 1024
+// #define MAX_OPERANDS 1024
 
 enum Opcode : uint8_t {
   BINOP_PLUS = 0x01,
@@ -100,17 +96,21 @@ const char *ops[] = {
 class Interpreter {
 private:
   BytecodeFile &bc;
-  unsigned char operands[MAX_OPERANDS] = {0};
-  unsigned char *sp = nullptr;
+  std::vector<void *> globals;
+  std::vector<void *> operands;
+  // unsigned char operands[MAX_OPERANDS] = {0};
+  // void **sp = nullptr;
   const uint8_t *ip = nullptr;
 
 public:
-  explicit Interpreter(BytecodeFile &bc) : bc(bc) {}
+  explicit Interpreter(BytecodeFile &bc) : bc(bc) {
+    globals.resize(bc.get_global_area_size(), nullptr);
+  }
 
   void interpret() {
     const uint8_t *bytecode_start = bc.get_bytecode();
     ip = bytecode_start;
-    sp = operands;
+    // sp = operands.data();
     do {
       log() << HEX_FMT(ip - bytecode_start, 8) << ": ";
       uint8_t opcode = *ip++;
@@ -135,13 +135,22 @@ public:
       case BINOP_NE:
       case BINOP_AND:
       case BINOP_OR: {
-        log() << "BINOP " << ops[l - 1] << std::endl;
+        void *rhs = pop();
+        void *lhs = pop();
+        aint result = 0;
+        if (l == BINOP_MULTIPLY) {
+          result = Ls__Infix_42(rhs, lhs);
+        }
+        push(result);
+        log() << "BINOP " << UNBOX(reinterpret_cast<aint>(lhs)) << " "
+              << ops[l - 1] << " " << UNBOX(reinterpret_cast<aint>(rhs))
+              << " = " << UNBOX(result) << std::endl;
         break;
       }
       case CONST: {
         int32_t value = ip_int32();
         log() << "CONST " << value << std::endl;
-        push(value);
+        push(BOX(value));
         break;
       }
       case BEGIN_NO_CLOSURE:
@@ -164,25 +173,29 @@ public:
         break;
       }
       case ST_G:
-      case ST_L:
-      case ST_A:
-      case ST_C: {
-        int32_t glob = ip_int32();
-        aint value = top_aint();
-        log() << "ST " << glob << " " << UNBOX(value) << std::endl;
-        // TODO: bc.set_global(glob, *reinterpret_cast<ssize_t *>(value));
-        break;
-      }
+        // case ST_L:
+        // case ST_A:
+        // case ST_C:
+        {
+          int32_t glob = ip_int32();
+          check_global_index(glob);
+          aint value = top_aint();
+          globals[glob] = reinterpret_cast<void *>(value);
+          log() << "ST G(" << glob << ") " << UNBOX(value) << std::endl;
+          break;
+        }
       case LD_G:
-      case LD_L:
-      case LD_A:
-      case LD_C: {
-        int32_t glob = ip_int32();
-        log() << "LD " << glob << std::endl;
-        // TODO: bc.get_global(glob); and store to stack
-        push(-1);
-        break;
-      }
+        // case LD_L:
+        // case LD_A:
+        // case LD_C:
+        {
+          int32_t glob = ip_int32();
+          check_global_index(glob);
+          aint value = reinterpret_cast<aint>(globals[glob]);
+          push(value);
+          log() << "LD G(" << glob << ") " << UNBOX(value) << std::endl;
+          break;
+        }
       case DROP: {
         log() << "DROP" << std::endl;
         pop();
@@ -193,9 +206,8 @@ public:
         break;
       }
       default: {
-        std::ostringstream oss;
-        oss << "Invalid opcode: " << HEX_FMT(static_cast<unsigned>(opcode), 2);
-        throw std::runtime_error(oss.str());
+        throw std::runtime_error("Invalid opcode: " +
+                                 STR_HEX(static_cast<unsigned>(opcode), 2));
       }
       }
     } while (1);
@@ -212,22 +224,20 @@ private:
   const char *ip_string() { return bc.get_string(ip_int32())->c_str(); }
 
   void push(aint value) {
-    check_stack_overflow(sizeof(aint));
-    *(aint *)sp = value;
-    sp += sizeof(aint);
+    check_stack_overflow();
+    operands.push_back(reinterpret_cast<void *>(value));
   }
 
-  // TODO:
-  // void push(void *value) {
-  //   check_stack_overflow(sp, sizeof(void *));
-  //   *(void **)sp = value;
-  //   sp += sizeof(void *);
-  // }
+  void push(void *value) {
+    check_stack_overflow();
+    operands.push_back(value);
+  }
 
   void *pop() {
-    check_stack_underflow(sizeof(void *));
-    sp -= sizeof(void *);
-    return *(void **)sp;
+    check_stack_underflow();
+    void *value = operands.back();
+    operands.pop_back();
+    return value;
   }
 
   aint pop_aint() {
@@ -236,8 +246,8 @@ private:
   }
 
   void *top() {
-    check_stack_underflow(sizeof(void *));
-    return *(void **)(sp - sizeof(void *));
+    check_stack_underflow();
+    return operands.back();
   }
 
   aint top_aint() { return reinterpret_cast<aint>(top()); }
@@ -246,17 +256,18 @@ private:
 
   void write_value(aint value) { Lwrite(value); }
 
-  void check_stack_overflow(size_t bytes) {
-    if (sp + bytes > operands + MAX_OPERANDS) {
-      throw StackOverflowException("push");
+  void check_stack_overflow() { /* always passes */ }
+
+  void check_stack_underflow() {
+    if (operands.empty()) {
+      throw StackUnderflowException(ip - bc.get_bytecode());
     }
   }
 
-  void check_stack_underflow(size_t bytes) {
-    if (sp - bytes < operands) {
-      // TODO: add macros for extracting current ip (printing the
-      // instruction name)
-      throw StackUnderflowException("pop");
+  void check_global_index(int32_t index) {
+    if (index < 0 || static_cast<size_t>(index) >= globals.size()) {
+      throw GlobalIndexOutOfBoundsException(index, globals.size(),
+                                            ip - bc.get_bytecode());
     }
   }
 };
