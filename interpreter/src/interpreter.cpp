@@ -56,7 +56,6 @@ enum Opcode : uint8_t {
   SEXP = 0x12,
   STI = 0x13,
   STA = 0x14,
-  // TODO: labels?
   JMP = 0x15,
   END = 0x16,
   RET = 0x17,
@@ -248,12 +247,28 @@ public:
         log() << "ST G(" << glob << ") " << UNBOX(value) << std::endl;
         break;
       }
+      case ST_L: {
+        int32_t local = ip_int32();
+        check_local_index(local);
+        aint value = top_aint();
+        write_local(local, reinterpret_cast<void *>(value));
+        log() << "ST L(" << local << ") " << UNBOX(value) << std::endl;
+        break;
+      }
       case LD_G: {
         int32_t glob = ip_int32();
         check_global_index(glob);
         aint value = reinterpret_cast<aint>(globals[glob]);
         push(value);
         log() << "LD G(" << glob << ") " << UNBOX(value) << std::endl;
+        break;
+      }
+      case LD_L: {
+        int32_t local = ip_int32();
+        check_local_index(local);
+        aint value = reinterpret_cast<aint>(read_local(local));
+        push(value);
+        log() << "LD L(" << local << ") " << UNBOX(value) << std::endl;
         break;
       }
       case DROP: {
