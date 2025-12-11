@@ -54,11 +54,14 @@ enum Opcode : uint8_t {
   CONST = 0x10,
   STRING = 0x11,
   SEXP = 0x12,
+
   STI = 0x13,
   STA = 0x14,
+
   JMP = 0x15,
   END = 0x16,
   RET = 0x17,
+
   DROP = 0x18,
   DUP = 0x19,
   SWAP = 0x1a,
