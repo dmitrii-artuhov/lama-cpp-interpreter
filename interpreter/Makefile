@@ -54,3 +54,14 @@ $(RUNTIME_LIB):
 .PHONY: clean
 clean:
 	$(RM) -r $(BUILD_DIR)
+
+# Run tests from regression folder
+.PHONY: test
+test: $(TARGET)
+	@echo "Running tests from ../regression..."
+	@./run_tests.sh ../regression
+
+# Clean test results
+.PHONY: clean_test
+clean_test:
+	$(RM) -r test_results
