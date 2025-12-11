@@ -31,6 +31,8 @@ aint Ls__Infix_3838(void *p, void *q); // &&
 aint Ls__Infix_3333(void *p, void *q); // !!
 
 void *Bstring(aint *args);
+void *Belem(void *p, aint i);
+aint Llength(void *p);
 
 extern void __init();
 extern void __shutdown();
@@ -229,6 +231,14 @@ public:
         write_value(value);
         break;
       }
+      case CALL_LENGTH: {
+        void *str = pop();
+        aint length = Llength(str);
+        log() << "CALL_LENGTH -> " << TO_DATA(str)->contents << " "
+              << UNBOX(length) << std::endl;
+        push(length);
+        break;
+      }
       case BINOP_PLUS:
       case BINOP_MINUS:
       case BINOP_MULTIPLY:
@@ -339,6 +349,15 @@ public:
       case DROP: {
         log() << "DROP" << std::endl;
         pop();
+        break;
+      }
+      case ELEM: {
+        aint index = pop_aint();
+        void *arr = pop();
+        void *result = Belem(arr, index);
+        push(result);
+        log() << "ELEM " << &TO_DATA(arr)->contents << "[" << UNBOX(index)
+              << "]" << std::endl;
         break;
       }
       case LINE: {
