@@ -6,16 +6,28 @@
 #include <string>
 #include <unistd.h>
 
+extern "C" {
 #ifndef _Noreturn
 #define _Noreturn
 #endif
 
-extern "C" {
 #include "runtime.h"
 
-extern aint Lread();
-extern void Lwrite(aint value);
-extern aint Ls__Infix_42(void *p, void *q); // *
+aint Lread();
+void Lwrite(aint value);
+aint Ls__Infix_43(void *p, void *q);   // +
+aint Ls__Infix_45(void *p, void *q);   // -
+aint Ls__Infix_42(void *p, void *q);   // *
+aint Ls__Infix_47(void *p, void *q);   // /
+aint Ls__Infix_37(void *p, void *q);   // %
+aint Ls__Infix_60(void *p, void *q);   // <
+aint Ls__Infix_6061(void *p, void *q); // <=
+aint Ls__Infix_62(void *p, void *q);   // >
+aint Ls__Infix_6261(void *p, void *q); // >=
+aint Ls__Infix_6161(void *p, void *q); // ==
+aint Ls__Infix_3361(void *p, void *q); // !=
+aint Ls__Infix_3838(void *p, void *q); // &&
+aint Ls__Infix_3333(void *p, void *q); // !!
 }
 
 // Define custom data section boundaries for garbage collector
@@ -93,6 +105,25 @@ enum Opcode : uint8_t {
 const char *ops[] = {
     "+", "-", "*", "/", "%", "<", "<=", ">", ">=", "==", "!=", "&&", "!!"};
 
+// Operator functions: aint (void*, void *)
+using binop_fun_ptr = aint (*)(void *, void *);
+
+binop_fun_ptr binop_functions[] = {
+    Ls__Infix_43,   // +
+    Ls__Infix_45,   // -
+    Ls__Infix_42,   // *
+    Ls__Infix_47,   // /
+    Ls__Infix_37,   // %
+    Ls__Infix_60,   // <
+    Ls__Infix_6061, // <=
+    Ls__Infix_62,   // >
+    Ls__Infix_6261, // >=
+    Ls__Infix_6161, // ==
+    Ls__Infix_3361, // !=
+    Ls__Infix_3838, // &&
+    Ls__Infix_3333  // !!
+};
+
 class Interpreter {
 private:
   BytecodeFile &bc;
@@ -137,10 +168,7 @@ public:
       case BINOP_OR: {
         void *rhs = pop();
         void *lhs = pop();
-        aint result = 0;
-        if (l == BINOP_MULTIPLY) {
-          result = Ls__Infix_42(rhs, lhs);
-        }
+        aint result = binop_functions[l - 1](rhs, lhs);
         push(result);
         log() << "BINOP " << UNBOX(reinterpret_cast<aint>(lhs)) << " "
               << ops[l - 1] << " " << UNBOX(reinterpret_cast<aint>(rhs))
@@ -273,7 +301,7 @@ private:
 };
 
 int main(int argc, char *argv[]) {
-  // TODO: add logger file name
+  // TODO: add logger file name to arguments
   if (argc < 2) {
     std::cerr << "Usage: " << argv[0] << " <bytecode_file.bc>" << std::endl;
     return 1;
