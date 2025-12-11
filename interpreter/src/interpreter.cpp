@@ -38,7 +38,7 @@ extern void __shutdown();
 extern size_t __gc_stack_top, __gc_stack_bottom;
 }
 // GC bounds for globals
-// size_t __start_custom_data, __stop_custom_data;
+size_t __start_custom_data, __stop_custom_data;
 
 #define MAX_OPERANDS 32768
 #define MAX_FRAME_STACK_SIZE 1024
@@ -146,12 +146,10 @@ private:
 
 public:
   explicit Interpreter(BytecodeFile &bc) : bc(bc) {
-
     globals.resize(bc.get_global_area_size(), nullptr);
-    // __start_custom_data = __stop_custom_data =
-    //     reinterpret_cast<size_t>(globals.data());
-    // __stop_custom_data =
-    //     reinterpret_cast<size_t>(globals.data() + globals.size());
+    __start_custom_data = reinterpret_cast<size_t>(globals.data());
+    __stop_custom_data =
+        reinterpret_cast<size_t>(globals.data() + globals.size());
 
     __gc_stack_top = reinterpret_cast<size_t>(&operands);
     __gc_stack_bottom = reinterpret_cast<size_t>(&operands + MAX_OPERANDS);
