@@ -30,11 +30,10 @@ aint Ls__Infix_3838(void *p, void *q); // &&
 aint Ls__Infix_3333(void *p, void *q); // !!
 }
 
-// Define custom data section boundaries for garbage collector
 void *__start_custom_data;
 void *__stop_custom_data;
 
-// #define MAX_OPERANDS 1024
+#define MAX_OPERANDS 1024
 
 enum Opcode : uint8_t {
   BINOP_PLUS = 0x01,
@@ -127,9 +126,8 @@ class Interpreter {
 private:
   BytecodeFile &bc;
   std::vector<void *> globals;
-  std::vector<void *> operands;
-  // unsigned char operands[MAX_OPERANDS] = {0};
-  // void **sp = nullptr;
+  void *operands[MAX_OPERANDS] = {0};
+  void **sp = nullptr;
   const uint8_t *ip = nullptr;
 
 public:
@@ -140,6 +138,7 @@ public:
   void interpret() {
     const uint8_t *bytecode_start = bc.get_bytecode();
     ip = bytecode_start;
+    sp = operands;
     do {
       log() << STR_HEX(ip - bytecode_start, 8) << ": ";
       uint8_t opcode = *ip++;
@@ -253,18 +252,17 @@ private:
 
   void push(aint value) {
     check_stack_overflow();
-    operands.push_back(reinterpret_cast<void *>(value));
+    *sp++ = reinterpret_cast<void *>(value);
   }
 
   void push(void *value) {
     check_stack_overflow();
-    operands.push_back(value);
+    *sp++ = value;
   }
 
   void *pop() {
     check_stack_underflow();
-    void *value = operands.back();
-    operands.pop_back();
+    void *value = *(--sp);
     return value;
   }
 
@@ -275,7 +273,7 @@ private:
 
   void *top() {
     check_stack_underflow();
-    return operands.back();
+    return *(sp - 1);
   }
 
   aint top_aint() { return reinterpret_cast<aint>(top()); }
@@ -287,10 +285,14 @@ private:
 
   void write_value(aint value) { Lwrite(value); }
 
-  void check_stack_overflow() { /* always passes */ }
+  void check_stack_overflow() {
+    if (sp >= operands + MAX_OPERANDS) {
+      throw StackOverflowException(ip - bc.get_bytecode());
+    }
+  }
 
   void check_stack_underflow() {
-    if (operands.empty()) {
+    if (sp == nullptr || sp <= operands) {
       throw StackUnderflowException(ip - bc.get_bytecode());
     }
   }
