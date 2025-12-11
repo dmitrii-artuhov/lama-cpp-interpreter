@@ -122,7 +122,7 @@ BytecodeFile::get_public_symbols() const {
   return public_symbols;
 }
 
-const uint8_t *BytecodeFile::get_bytecode() const { return bytecode; }
+uint8_t *BytecodeFile::get_bytecode() const { return bytecode; }
 size_t BytecodeFile::get_bytecode_size() const { return bytecode_size; }
 
 // Get string by index

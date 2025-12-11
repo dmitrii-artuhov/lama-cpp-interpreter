@@ -19,10 +19,7 @@
   })()
 
 // Helper to read int32 from buffer (little-endian)
-// Uses reinterpret_cast to read directly from byte buffer
 inline uint32_t read_int32(const uint8_t *buf) {
-  // Align the buffer pointer and use reinterpret_cast to read as uint32_t
-  // Bytecode format is little-endian (native endian on x86/x64)
   return *reinterpret_cast<const uint32_t *>(buf);
 }
 
@@ -45,7 +42,6 @@ struct InstructionException : public std::runtime_error {
   size_t get_instruction_number() const { return instruction_number; }
 };
 
-// Exception for globals index out of bounds, inherits from InstructionException
 struct GlobalsIndexOutOfBoundsException : public InstructionException {
   int32_t global_index;
   size_t globals_total;
@@ -59,16 +55,26 @@ struct GlobalsIndexOutOfBoundsException : public InstructionException {
         global_index(global_index), globals_total(globals_total) {}
 };
 
-// Stack underflow exception, inherits from InstructionException
 struct StackUnderflowException : public InstructionException {
   StackUnderflowException(size_t instruction_number)
       : InstructionException("Stack underflow", instruction_number) {}
   using InstructionException::InstructionException;
 };
 
-// Stack overflow exception, inherits from InstructionException
 struct StackOverflowException : public InstructionException {
   StackOverflowException(size_t instruction_number)
       : InstructionException("Stack overflow", instruction_number) {}
+  using InstructionException::InstructionException;
+};
+
+struct FramesUnderflowException : public InstructionException {
+  FramesUnderflowException(size_t instruction_number)
+      : InstructionException("Frames underflow", instruction_number) {}
+  using InstructionException::InstructionException;
+};
+
+struct FramesOverflowException : public InstructionException {
+  FramesOverflowException(size_t instruction_number)
+      : InstructionException("Frames overflow", instruction_number) {}
   using InstructionException::InstructionException;
 };
