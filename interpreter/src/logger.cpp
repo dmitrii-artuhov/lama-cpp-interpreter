@@ -15,6 +15,7 @@ void init_logger(const std::string &filename) {
 #endif
 }
 
+// TODO: wrap calls to log() in macros, so it is properly cut-out when
 std::ostream &log() {
 #ifdef ENABLE_LOG
   if (log_file.is_open()) {
