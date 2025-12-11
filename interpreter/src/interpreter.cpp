@@ -273,6 +273,14 @@ public:
         log() << "ST L(" << local << ") " << UNBOX(value) << std::endl;
         break;
       }
+      case ST_A: {
+        int32_t arg = ip_int32();
+        check_argument_index(arg);
+        aint value = top_aint();
+        write_arg(arg, reinterpret_cast<void *>(value));
+        log() << "ST A(" << arg << ") " << UNBOX(value) << std::endl;
+        break;
+      }
       case LD_G: {
         int32_t glob = ip_int32();
         check_global_index(glob);
@@ -287,6 +295,14 @@ public:
         aint value = reinterpret_cast<aint>(read_local(local));
         push(value);
         log() << "LD L(" << local << ") " << UNBOX(value) << std::endl;
+        break;
+      }
+      case LD_A: {
+        int32_t arg = ip_int32();
+        check_argument_index(arg);
+        aint value = reinterpret_cast<aint>(read_arg(arg));
+        push(value);
+        log() << "LD A(" << arg << ") " << UNBOX(value) << std::endl;
         break;
       }
       case DROP: {
