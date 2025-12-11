@@ -165,7 +165,7 @@ public:
       case BINOP_OR: {
         void *rhs = pop();
         void *lhs = pop();
-        aint result = binop_functions[l - 1](rhs, lhs);
+        aint result = binop_functions[l - 1](lhs, rhs);
         push(result);
         log() << "BINOP " << UNBOX(reinterpret_cast<aint>(lhs)) << " "
               << ops[l - 1] << " " << UNBOX(reinterpret_cast<aint>(rhs))
@@ -193,7 +193,7 @@ public:
         break;
       }
       case CALL_WRITE: {
-        aint value = pop_aint();
+        aint value = top_aint();
         log() << "CALL_WRITE -> " << UNBOX(value) << std::endl;
         write_value(value);
         break;
@@ -297,8 +297,8 @@ private:
 
   void check_global_index(int32_t index) {
     if (index < 0 || static_cast<size_t>(index) >= globals.size()) {
-      throw GlobalIndexOutOfBoundsException(index, globals.size(),
-                                            ip - bc.get_bytecode());
+      throw GlobalsIndexOutOfBoundsException(index, globals.size(),
+                                             ip - bc.get_bytecode());
     }
   }
 };
