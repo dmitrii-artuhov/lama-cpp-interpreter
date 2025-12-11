@@ -243,8 +243,10 @@ private:
   uint8_t ip_byte() { return *ip++; }
 
   int32_t ip_int32() {
+    int32_t value;
+    std::memcpy(&value, ip, sizeof(int32_t));
     ip += sizeof(int32_t);
-    return *(int32_t *)(ip - sizeof(int32_t));
+    return value;
   }
 
   const char *ip_string() { return bc.get_string(ip_int32())->c_str(); }

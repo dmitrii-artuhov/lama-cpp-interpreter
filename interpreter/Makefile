@@ -27,7 +27,9 @@ TARGET = $(BUILD_DIR)/interpreter
 RUNTIME_LIB = $(RUNTIME_DIR)/runtime.a
 
 # Compiler flags
-CXXFLAGS = -g -fstack-protector-all $(ARCH) -std=c++17 -Wall -Wextra -DENABLE_LOG
+# Add sanitizers (AddressSanitizer, UndefinedBehaviorSanitizer)
+SANITIZER_FLAGS = -fsanitize=address -fsanitize=undefined
+CXXFLAGS = -g -O0 -fno-omit-frame-pointer -fstack-protector-all $(ARCH) -std=c++17 -Wall -Wextra -DENABLE_LOG $(SANITIZER_FLAGS)
 CPPFLAGS = -I$(RUNTIME_DIR) -I$(SRC_DIR)
 
 # Default target
