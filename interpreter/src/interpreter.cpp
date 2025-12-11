@@ -15,6 +15,7 @@ extern "C" {
 
 aint Lread();
 void Lwrite(aint value);
+
 aint Ls__Infix_43(void *p, void *q);   // +
 aint Ls__Infix_45(void *p, void *q);   // -
 aint Ls__Infix_42(void *p, void *q);   // *
@@ -28,12 +29,18 @@ aint Ls__Infix_6161(void *p, void *q); // ==
 aint Ls__Infix_3361(void *p, void *q); // !=
 aint Ls__Infix_3838(void *p, void *q); // &&
 aint Ls__Infix_3333(void *p, void *q); // !!
+
+void *Bstring(aint *args);
+
+extern void __init();
+extern void __shutdown();
+
+extern size_t __gc_stack_top, __gc_stack_bottom;
 }
+// GC bounds for globals
+// size_t __start_custom_data, __stop_custom_data;
 
-void *__start_custom_data;
-void *__stop_custom_data;
-
-#define MAX_OPERANDS 1024
+#define MAX_OPERANDS 32768
 #define MAX_FRAME_STACK_SIZE 1024
 
 enum Opcode : uint8_t {
@@ -131,7 +138,7 @@ private:
   BytecodeFile &bc;
   std::vector<void *> globals;
   uint8_t *ip = nullptr;
-  void *operands[MAX_OPERANDS] = {0};
+  alignas(16) void *operands[MAX_OPERANDS] = {0};
   void **sp = nullptr;
   std::vector<std::pair<int, int>> frames; // (args, locals) for current calls
   void *frame_stack[MAX_FRAME_STACK_SIZE] = {0};
@@ -139,7 +146,16 @@ private:
 
 public:
   explicit Interpreter(BytecodeFile &bc) : bc(bc) {
+
     globals.resize(bc.get_global_area_size(), nullptr);
+    // __start_custom_data = __stop_custom_data =
+    //     reinterpret_cast<size_t>(globals.data());
+    // __stop_custom_data =
+    //     reinterpret_cast<size_t>(globals.data() + globals.size());
+
+    __gc_stack_top = reinterpret_cast<size_t>(&operands);
+    __gc_stack_bottom = reinterpret_cast<size_t>(&operands + MAX_OPERANDS);
+    __init();
   }
 
   void interpret() {
@@ -168,6 +184,7 @@ public:
         pop_frame();
         log() << "END" << std::endl;
         if (frames.empty()) {
+          __shutdown();
           return; // main finished
         }
         break;
@@ -240,6 +257,19 @@ public:
         int32_t value = ip_int32();
         log() << "CONST " << value << std::endl;
         push(BOX(value));
+        break;
+      }
+      case STRING: {
+        int32_t id = ip_int32();
+        const std::string *string = bc.get_string(id);
+        if (string == nullptr) {
+          throw std::runtime_error("Invalid string id: " + std::to_string(id));
+        }
+        log() << "STRING " << *string << std::endl;
+        char *cstr = const_cast<char *>(string->c_str());
+        aint args = reinterpret_cast<aint>(cstr);
+        void *bstr = Bstring(&args);
+        push(bstr);
         break;
       }
       case JMP: {
