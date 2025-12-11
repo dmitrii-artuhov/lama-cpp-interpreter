@@ -1,7 +1,5 @@
 #include "logger.h"
 
-#define ENABLE_LOG
-
 // Static variables
 static std::ofstream log_file;
 static NullStream null_stream;
@@ -22,7 +20,6 @@ std::ostream &log() {
   if (log_file.is_open()) {
     return log_file;
   } else {
-    std::cerr << "Warning: Could not open log file" << std::endl;
     return std::cout;
   }
 #else

@@ -299,12 +299,15 @@ private:
 };
 
 int main(int argc, char *argv[]) {
-  // TODO: add logger file name to arguments
   if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " <bytecode_file.bc>" << std::endl;
+    std::cerr << "Usage: " << argv[0] << " <bytecode_file.bc> [log_file]"
+              << std::endl;
     return 1;
   }
-  init_logger("interpreter.log");
+
+  // Use provided log file path or default to "interpreter.log"
+  std::string log_file = (argc >= 3) ? argv[2] : "interpreter.log";
+  init_logger(log_file);
 
   try {
     BytecodeFile bc(argv[1]);
