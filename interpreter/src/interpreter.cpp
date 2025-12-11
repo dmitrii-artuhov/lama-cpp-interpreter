@@ -196,7 +196,7 @@ public:
         // push return address
         push_frame(reinterpret_cast<void *>(ip)); // the next instruction
         // go to callee
-        ip = bytecode_start + callee_offset;
+        set_ip(bytecode_start + callee_offset);
         break;
       }
       case CALL_READ: {
@@ -237,6 +237,24 @@ public:
         int32_t value = ip_int32();
         log() << "CONST " << value << std::endl;
         push(BOX(value));
+        break;
+      }
+      case JMP: {
+        int32_t offset = ip_int32();
+        log() << "JMP " << offset << std::endl;
+        set_ip(bytecode_start + offset);
+        break;
+      }
+      case CJMP_Z:
+      case CJMP_NZ: {
+        int32_t offset = ip_int32();
+        aint value = UNBOX(pop_aint());
+        log() << (opcode == CJMP_Z ? "CJMP_Z " : "CJMP_NZ ") << offset << " "
+              << value << std::endl;
+        if ((opcode == CJMP_Z && value == 0) ||
+            (opcode == CJMP_NZ && value != 0)) {
+          set_ip(bytecode_start + offset);
+        }
         break;
       }
       case ST_G: {
@@ -300,6 +318,11 @@ private:
   }
 
   const char *ip_string() { return bc.get_string(ip_int32())->c_str(); }
+
+  void set_ip(uint8_t *new_ip) {
+    check_ip_valid(new_ip);
+    ip = new_ip;
+  }
 
   // operands stack operations
   void push(aint value) {
@@ -375,8 +398,8 @@ private:
 
     check_frames_underflow(args + locals + 1);
     fp -= (args + locals + 1); // +1 for return address
-    ip = reinterpret_cast<uint8_t *>(
-        *fp); // `fp` now dereferences to return address
+    set_ip(reinterpret_cast<uint8_t *>(
+        *fp)); // `fp` now dereferences to return address
   }
 
   // IO
@@ -388,6 +411,13 @@ private:
   void write_value(aint value) { Lwrite(value); }
 
   // checks
+  void check_ip_valid(uint8_t *ip) {
+    uint8_t *bytecode_start = bc.get_bytecode();
+    if (ip < bytecode_start || ip >= bytecode_start + bc.get_bytecode_size()) {
+      throw InstructionException("Invalid IP", ip - bytecode_start);
+    }
+  }
+
   void check_stack_overflow() {
     if (sp >= operands + MAX_OPERANDS) {
       throw StackOverflowException(ip - bc.get_bytecode());
