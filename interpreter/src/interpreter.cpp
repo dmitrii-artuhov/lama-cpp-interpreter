@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <unistd.h>
+#include <vector>
 
 extern "C" {
 #ifndef _Noreturn
@@ -30,7 +31,8 @@ aint Ls__Infix_3361(void *p, void *q); // !=
 aint Ls__Infix_3838(void *p, void *q); // &&
 aint Ls__Infix_3333(void *p, void *q); // !!
 
-void *Bstring(aint *args);
+void *Bstring(aint *args); // TODO: should this be Lstring?
+void *Barray(aint *args, aint bn);
 void *Belem(void *p, aint i);
 void *Bsta(void *x, aint i, void *v);
 aint Llength(void *p);
@@ -240,6 +242,21 @@ public:
         aint length = Llength(arr);
         log() << "CALL_LENGTH -> " << UNBOX(length) << std::endl;
         push(length);
+        break;
+      }
+      case CALL_ARRAY: {
+        int32_t n = ip_int32();
+        log() << "CALL_ARRAY " << n << std::endl;
+
+        // Pop n values from the operands stack (in reverse order to maintain
+        // correct order)
+        std::vector<aint> args(n);
+        for (int32_t i = n - 1; i >= 0; --i) {
+          args[i] = pop_aint();
+        }
+
+        void *arr = Barray(args.data(), BOX(n));
+        push(arr);
         break;
       }
       case BINOP_PLUS:
