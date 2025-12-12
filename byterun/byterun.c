@@ -111,12 +111,15 @@ void disassemble(FILE *f, bytefile *bf) {
         fprintf(f, "CONST\t%d", INT);
         break;
 
-      case 1:
-        fprintf(f, "STRING\t%s", STRING);
+      case 1: {
+        int id = INT;
+        fprintf(f, "STRING\t%s (%d)", get_string(bf, id), id);
         break;
+      }
 
       case 2:
-        fprintf(f, "SEXP\t%s ", STRING);
+        int id = INT;
+        fprintf(f, "SEXP\t%s (%d)", get_string(bf, id), id);
         fprintf(f, "%d", INT);
         break;
 
@@ -306,6 +309,29 @@ void dump_file(FILE *f, bytefile *bf) {
   int i;
 
   fprintf(f, "String table size       : %d\n", bf->stringtab_size);
+  
+  // Print all strings in the string table (like interpreter does)
+  fprintf(f, "Strings table:\n");
+  char *str_ptr = bf->string_ptr;
+  char *str_end = bf->string_ptr + bf->stringtab_size;
+  int offset = 0;
+  
+  while (str_ptr < str_end) {
+    int len = strlen(str_ptr);
+    if (str_ptr + len >= str_end) {
+      break;
+    }
+    fprintf(f, "  0x%.8x: %s\n", offset, str_ptr);
+    str_ptr += len + 1; // Skip null terminator
+    offset += len + 1;
+    
+    // Handle padding/null bytes between strings
+    while (str_ptr < str_end && *str_ptr == '\0' && offset < bf->stringtab_size) {
+      fprintf(f, "  0x%.8x: (empty)\n", offset);
+      str_ptr++;
+      offset++;
+    }
+  }
   fprintf(f, "Global area size        : %d\n", bf->global_area_size);
   fprintf(f, "Number of public symbols: %d\n", bf->public_symbols_number);
   fprintf(f, "Public symbols          :\n");
