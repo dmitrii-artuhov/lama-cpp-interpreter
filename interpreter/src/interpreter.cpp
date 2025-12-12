@@ -180,7 +180,8 @@ private:
   BytecodeFile &bc;
   std::vector<void *> globals;
   uint8_t *ip = nullptr;
-  alignas(16) void *operands[MAX_OPERANDS] = {0};
+  alignas(16) void *memory[MAX_OPERANDS + MAX_FRAME_STACK_SIZE] = {0};
+  void **operands = memory;
   void **sp = nullptr;
   struct Frame {
     int args;
@@ -189,7 +190,7 @@ private:
                        // values)
   };
   std::vector<Frame> frames;
-  void *frame_stack[MAX_FRAME_STACK_SIZE] = {0};
+  void **frame_stack = memory + MAX_OPERANDS;
   void **fp = nullptr;
 
 public:
@@ -203,8 +204,9 @@ public:
 
   void interpret() {
     // Reset GC
-    __gc_stack_top = reinterpret_cast<size_t>(operands);
-    __gc_stack_bottom = reinterpret_cast<size_t>(operands + MAX_OPERANDS);
+    __gc_stack_top = reinterpret_cast<size_t>(memory);
+    __gc_stack_bottom =
+        reinterpret_cast<size_t>(memory + MAX_OPERANDS + MAX_FRAME_STACK_SIZE);
     __init();
 
     // Reset pointers
@@ -421,10 +423,8 @@ public:
         int32_t n = ip_int32();
 
         const std::string *tag_str = bc.get_string(tag_string_id);
-        if (tag_str == nullptr) {
-          throw std::runtime_error("Invalid tag string id: " +
-                                   std::to_string(tag_string_id));
-        }
+        check(tag_str != nullptr,
+              "Invalid tag string id: " + STR_HEX(tag_string_id, 8));
         log() << "SEXP tag=" << *tag_str << " n=" << n << std::endl;
 
         // Pop n field values from the operands stack (in reverse order to
@@ -899,7 +899,8 @@ int main(int argc, char *argv[]) {
     for (const auto &entry : bc.get_strings()) {
       auto &index = entry.first;
       auto &string = entry.second;
-      log() << "    " << STR_HEX(index, 8) << ": " << string << std::endl;
+      log() << "    " << STR_HEX(index, 8) << ": "
+            << (string.empty() ? "<empty>" : string) << std::endl;
     }
     log() << "  Public symbols: " << bc.get_public_symbols_number()
           << std::endl;
