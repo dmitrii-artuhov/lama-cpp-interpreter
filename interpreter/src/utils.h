@@ -8,6 +8,15 @@
 #include <stdexcept>
 #include <string>
 
+extern "C" {
+#ifndef _Noreturn
+#define _Noreturn
+#endif
+#include "runtime.h"
+
+void *Lstring(aint *args);
+}
+
 #define HEX_FMT(val, width)                                                    \
   "0x" << std::hex << std::setw(width) << std::setfill('0') << (val)
 
@@ -17,6 +26,8 @@
     oss << HEX_FMT((val), width);                                              \
     return std::string(oss.str());                                             \
   })()
+
+#define LAMA_TO_STR(value) lama_value_to_string(reinterpret_cast<void *>(value))
 
 // Helper to read int32 from buffer (little-endian)
 inline uint32_t read_int32(const uint8_t *buf) {
@@ -28,6 +39,18 @@ inline uint32_t read_int32(std::ifstream &file) {
   uint32_t value;
   file.read(reinterpret_cast<char *>(&value), sizeof(uint32_t));
   return value;
+}
+
+// Convert lama data pointer to string
+inline std::string lama_value_to_string(void *value) {
+  aint args[] = {reinterpret_cast<aint>(value)};
+  void *lama_string = Lstring(args);
+
+  // Extract C string from Lama string
+  data *d = TO_DATA(lama_string);
+  const char *c_str = reinterpret_cast<const char *>(d->contents);
+
+  return std::string(c_str);
 }
 
 // Base exception that stores an instruction number/context
