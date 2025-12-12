@@ -3,8 +3,8 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 class BytecodeFile {
@@ -15,10 +15,10 @@ private:
   uint32_t public_symbols_number;
 
   // String table: maps string index to string content
-  std::unordered_map<uint32_t, std::string> strings;
+  std::map<uint32_t, std::string> strings;
 
   // Public symbols: maps symbol name to code offset
-  std::unordered_map<std::string, uint32_t> public_symbols;
+  std::map<std::string, uint32_t> public_symbols;
 
   // Bytecode data (raw pointer, deleted in destructor)
   uint8_t *bytecode;
@@ -38,8 +38,8 @@ public:
   uint32_t get_global_area_size() const { return global_area_size; }
   uint32_t get_public_symbols_number() const { return public_symbols_number; }
 
-  const std::unordered_map<uint32_t, std::string> &get_strings() const;
-  const std::unordered_map<std::string, uint32_t> &get_public_symbols() const;
+  const std::map<uint32_t, std::string> &get_strings() const;
+  const std::map<std::string, uint32_t> &get_public_symbols() const;
 
   uint8_t *get_bytecode() const;
   size_t get_bytecode_size() const;

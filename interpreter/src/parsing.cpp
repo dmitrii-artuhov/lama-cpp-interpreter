@@ -42,7 +42,6 @@ BytecodeFile::BytecodeFile(const std::string &file_path)
     if (len == 0 && str_ptr < str_end - 1) {
       // Empty string or end of table
       str_ptr++;
-      string_index++;
       continue;
     }
     if (str_ptr + len >= str_end) {
@@ -51,7 +50,7 @@ BytecodeFile::BytecodeFile(const std::string &file_path)
 
     strings[string_index] = std::string(str_ptr, len);
     str_ptr += len + 1; // Skip null terminator
-    string_index++;
+    string_index += len + 1;
   }
 
   // Build public symbols map using parsed strings
@@ -113,11 +112,10 @@ BytecodeFile &BytecodeFile::operator=(BytecodeFile &&other) noexcept {
   return *this;
 }
 
-const std::unordered_map<uint32_t, std::string> &
-BytecodeFile::get_strings() const {
+const std::map<uint32_t, std::string> &BytecodeFile::get_strings() const {
   return strings;
 }
-const std::unordered_map<std::string, uint32_t> &
+const std::map<std::string, uint32_t> &
 BytecodeFile::get_public_symbols() const {
   return public_symbols;
 }

@@ -568,6 +568,11 @@ int main(int argc, char *argv[]) {
     log() << "  Global area size: " << bc.get_global_area_size() << " words"
           << std::endl;
     log() << "  Strings loaded: " << bc.get_strings().size() << std::endl;
+    for (const auto &entry : bc.get_strings()) {
+      auto &index = entry.first;
+      auto &string = entry.second;
+      log() << "    " << STR_HEX(index, 8) << ": " << string << std::endl;
+    }
     log() << "  Public symbols: " << bc.get_public_symbols_number()
           << std::endl;
     for (const auto &symbol : bc.get_public_symbols()) {
