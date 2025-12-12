@@ -42,6 +42,15 @@ void *Lstring(aint *args);
 aint Llength(void *p);
 aint LtagHash(char *s);
 
+// Pattern matching funcions
+aint Bstring_patt(void *x, void *y); // =str
+aint Bstring_tag_patt(void *x);      // #string
+aint Barray_tag_patt(void *x);       // #array
+aint Bsexp_tag_patt(void *x);        // #sexp
+aint Bboxed_patt(void *x);           // #ref
+aint Bunboxed_patt(void *x);         // #val
+aint Bclosure_tag_patt(void *x);     // #fun
+
 void __init();
 void __shutdown();
 
@@ -118,7 +127,14 @@ enum Opcode : uint8_t {
   ARRAY = 0x58,
   FAIL = 0x59,
   LINE = 0x5a,
-  PATT = 0x60,
+
+  PATT_STRCMP = 0x60,
+  PATT_STRING = 0x61,
+  PATT_ARRAY = 0x62,
+  PATT_SEXP = 0x63,
+  PATT_REF = 0x64,
+  PATT_VAL = 0x65,
+  PATT_FUN = 0x66,
   // TODO: extern, public, import
 };
 
@@ -141,6 +157,21 @@ binop_fun_ptr binop_functions[] = {
     Ls__Infix_3361, // !=
     Ls__Infix_3838, // &&
     Ls__Infix_3333  // !!
+};
+
+const char *patts[] = {"=str", "#string", "#array", "#sexp",
+                       "#ref", "#val",    "#fun"};
+
+using single_arg_patt_fun_ptr = aint (*)(void *);
+
+single_arg_patt_fun_ptr patt_functions[] = {
+    nullptr,          // =str (Bstring_patt), should be called manually
+    Bstring_tag_patt, // #string
+    Barray_tag_patt,  // #array
+    Bsexp_tag_patt,   // #sexp
+    Bboxed_patt,      // #ref
+    Bunboxed_patt,    // #val
+    Bclosure_tag_patt // #fun
 };
 
 class Interpreter {
@@ -584,6 +615,31 @@ public:
         push(closure);
 
         log() << std::endl;
+        break;
+      }
+      case PATT_STRCMP:
+      case PATT_STRING:
+      case PATT_ARRAY:
+      case PATT_SEXP:
+      case PATT_REF:
+      case PATT_VAL:
+      case PATT_FUN: {
+        // PATT opcode is (0x60 + pattern enum value), the second part is stored
+        // in `l` variable
+        aint result = BOX(0);
+        void *value = pop();
+
+        if (l == 0) {
+          void *y = pop();
+          result = Bstring_patt(value, y);
+        } else if (l >= 1 && l <= 6) {
+          result = patt_functions[l](value);
+        } else {
+          fail_with("Invalid PATT pattern: " + std::to_string(l));
+        }
+        push(result);
+
+        log() << "PATT " << patts[l] << " -> " << UNBOX(result) << std::endl;
         break;
       }
       case LINE: {
