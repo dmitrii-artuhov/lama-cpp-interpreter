@@ -149,17 +149,20 @@ private:
 
 public:
   explicit Interpreter(BytecodeFile &bc) : bc(bc) {
+    // Set globals for GC once
     globals.resize(bc.get_global_area_size(), nullptr);
     __start_custom_data = reinterpret_cast<size_t>(globals.data());
     __stop_custom_data =
         reinterpret_cast<size_t>(globals.data() + globals.size());
-
-    __gc_stack_top = reinterpret_cast<size_t>(&operands);
-    __gc_stack_bottom = reinterpret_cast<size_t>(&operands + MAX_OPERANDS);
-    __init();
   }
 
   void interpret() {
+    // Reset GC
+    __gc_stack_top = reinterpret_cast<size_t>(&operands);
+    __gc_stack_bottom = reinterpret_cast<size_t>(&operands + MAX_OPERANDS);
+    __init();
+
+    // Reset pointers
     uint8_t *bytecode_start = bc.get_bytecode();
     ip = bytecode_start;
     sp = operands;
@@ -233,9 +236,9 @@ public:
         break;
       }
       case CALL_LENGTH: {
-        void *str = pop();
-        aint length = Llength(str);
-        log() << "CALL_LENGTH -> " /*<< LAMA_TO_STR(str)*/ << " "
+        void *arr = pop();
+        aint length = Llength(arr);
+        log() << "CALL_LENGTH " /* << "-> " << LAMA_TO_STR(str) << " "*/
               << UNBOX(length) << std::endl;
         push(length);
         break;
@@ -278,7 +281,7 @@ public:
         aint args = reinterpret_cast<aint>(cstr);
         void *bstr = Bstring(&args);
         push(bstr);
-        log() << "STRING " /*<< LAMA_TO_STR(bstr)*/ << std::endl;
+        log() << "STRING " << LAMA_TO_STR(bstr) << std::endl;
         break;
       }
       case STA: {
@@ -287,8 +290,8 @@ public:
         void *arr = pop();
         Bsta(arr, index, value);
         push(value);
-        log() << "STA " /*<< LAMA_TO_STR(arr)*/ << "[" << UNBOX(index)
-              << "] = " /*<< LAMA_TO_STR(value)*/ << std::endl;
+        log() << "STA " << LAMA_TO_STR(arr) << "[" << UNBOX(index)
+              << "] = " << LAMA_TO_STR(value) << std::endl;
         break;
       }
       case JMP: {
@@ -322,8 +325,7 @@ public:
         check_local_index(local);
         void *value = top();
         write_local(local, value);
-        log() << "ST L(" << local
-              << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
+        log() << "ST L(" << local << ") " << LAMA_TO_STR(value) << std::endl;
         break;
       }
       case ST_A: {
@@ -331,7 +333,7 @@ public:
         check_argument_index(arg);
         void *value = top();
         write_arg(arg, value);
-        log() << "ST A(" << arg << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
+        log() << "ST A(" << arg << ") " << LAMA_TO_STR(value) << std::endl;
         break;
       }
       case LD_G: {
@@ -347,8 +349,7 @@ public:
         check_local_index(local);
         void *value = read_local(local);
         push(value);
-        log() << "LD L(" << local
-              << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
+        log() << "LD L(" << local << ") " << LAMA_TO_STR(value) << std::endl;
         break;
       }
       case LD_A: {
@@ -369,9 +370,8 @@ public:
         void *arr = pop();
         void *result = Belem(arr, index);
         push(result);
-        log() << "ELEM " /*<< LAMA_TO_STR(arr)*/ << "[" << UNBOX(index)
-              << "] -> "
-              /*<< LAMA_TO_STR(result)*/
+        log() << "ELEM "      /*<< LAMA_TO_STR(arr) << "["*/
+              << UNBOX(index) /*<< "] -> " << LAMA_TO_STR(result)*/
               << std::endl;
         break;
       }

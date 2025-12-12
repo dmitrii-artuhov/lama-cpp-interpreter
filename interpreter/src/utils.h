@@ -27,6 +27,7 @@ void *Lstring(aint *args);
     return std::string(oss.str());                                             \
   })()
 
+// Note: causes problems with GC, use with caustion disable when facing problems
 #define LAMA_TO_STR(value) lama_value_to_string(reinterpret_cast<void *>(value))
 
 // Helper to read int32 from buffer (little-endian)
