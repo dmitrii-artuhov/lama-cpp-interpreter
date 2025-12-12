@@ -409,6 +409,12 @@ public:
         pop();
         break;
       }
+      case DUP: {
+        log() << "DUP" << std::endl;
+        void *value = top();
+        push(value);
+        break;
+      }
       case ELEM: {
         aint index = pop_aint();
         void *arr = pop();
