@@ -37,6 +37,7 @@ void *Bsexp(aint *args, aint bn);
 void *Belem(void *p, aint i);
 void *Bsta(void *x, aint i, void *v);
 aint Btag(void *d, aint t, aint n);
+void *Lstring(aint *args);
 aint Llength(void *p);
 aint LtagHash(char *s);
 
@@ -245,6 +246,14 @@ public:
         aint length = Llength(arr);
         log() << "CALL_LENGTH -> " << UNBOX(length) << std::endl;
         push(length);
+        break;
+      }
+      case CALL_STRING: {
+        void *value = pop();
+        aint args = reinterpret_cast<aint>(value);
+        void *lstr = Lstring(&args);
+        push(lstr);
+        log() << "CALL_STRING -> " << TO_DATA(lstr)->contents << std::endl;
         break;
       }
       case CALL_ARRAY: {
