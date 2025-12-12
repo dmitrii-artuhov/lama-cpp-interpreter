@@ -238,8 +238,7 @@ public:
       case CALL_LENGTH: {
         void *arr = pop();
         aint length = Llength(arr);
-        log() << "CALL_LENGTH " /* << "-> " << LAMA_TO_STR(str) << " "*/
-              << UNBOX(length) << std::endl;
+        log() << "CALL_LENGTH -> " << UNBOX(length) << std::endl;
         push(length);
         break;
       }
@@ -281,7 +280,7 @@ public:
         aint args = reinterpret_cast<aint>(cstr);
         void *bstr = Bstring(&args);
         push(bstr);
-        log() << "STRING " << LAMA_TO_STR(bstr) << std::endl;
+        log() << "STRING " << std::string(TO_DATA(bstr)->contents) << std::endl;
         break;
       }
       case STA: {
@@ -290,8 +289,7 @@ public:
         void *arr = pop();
         Bsta(arr, index, value);
         push(value);
-        log() << "STA " << LAMA_TO_STR(arr) << "[" << UNBOX(index)
-              << "] = " << LAMA_TO_STR(value) << std::endl;
+        log() << "STA " << UNBOX(index) << std::endl;
         break;
       }
       case JMP: {
@@ -317,7 +315,7 @@ public:
         check_global_index(glob);
         void *value = top();
         globals[glob] = reinterpret_cast<void *>(value);
-        log() << "ST G(" << glob << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
+        log() << "ST G(" << glob << ")" << std::endl;
         break;
       }
       case ST_L: {
@@ -325,7 +323,7 @@ public:
         check_local_index(local);
         void *value = top();
         write_local(local, value);
-        log() << "ST L(" << local << ") " << LAMA_TO_STR(value) << std::endl;
+        log() << "ST L(" << local << ")" << std::endl;
         break;
       }
       case ST_A: {
@@ -333,7 +331,7 @@ public:
         check_argument_index(arg);
         void *value = top();
         write_arg(arg, value);
-        log() << "ST A(" << arg << ") " << LAMA_TO_STR(value) << std::endl;
+        log() << "ST A(" << arg << ")" << std::endl;
         break;
       }
       case LD_G: {
@@ -341,7 +339,7 @@ public:
         check_global_index(glob);
         void *value = globals[glob];
         push(value);
-        log() << "LD G(" << glob << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
+        log() << "LD G(" << glob << ")" << std::endl;
         break;
       }
       case LD_L: {
@@ -349,7 +347,7 @@ public:
         check_local_index(local);
         void *value = read_local(local);
         push(value);
-        log() << "LD L(" << local << ") " << LAMA_TO_STR(value) << std::endl;
+        log() << "LD L(" << local << ")" << std::endl;
         break;
       }
       case LD_A: {
@@ -357,7 +355,7 @@ public:
         check_argument_index(arg);
         void *value = read_arg(arg);
         push(value);
-        log() << "LD A(" << arg << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
+        log() << "LD A(" << arg << ")" << std::endl;
         break;
       }
       case DROP: {
@@ -370,9 +368,7 @@ public:
         void *arr = pop();
         void *result = Belem(arr, index);
         push(result);
-        log() << "ELEM "      /*<< LAMA_TO_STR(arr) << "["*/
-              << UNBOX(index) /*<< "] -> " << LAMA_TO_STR(result)*/
-              << std::endl;
+        log() << "ELEM " << UNBOX(index) << std::endl;
         break;
       }
       case LINE: {
