@@ -32,10 +32,11 @@ aint Ls__Infix_3333(void *p, void *q); // !!
 
 void *Bstring(aint *args);
 void *Belem(void *p, aint i);
+void *Bsta(void *x, aint i, void *v);
 aint Llength(void *p);
 
-extern void __init();
-extern void __shutdown();
+void __init();
+void __shutdown();
 
 extern size_t __gc_stack_top, __gc_stack_bottom;
 }
@@ -234,7 +235,7 @@ public:
       case CALL_LENGTH: {
         void *str = pop();
         aint length = Llength(str);
-        log() << "CALL_LENGTH -> " << TO_DATA(str)->contents << " "
+        log() << "CALL_LENGTH -> " /*<< LAMA_TO_STR(str)*/ << " "
               << UNBOX(length) << std::endl;
         push(length);
         break;
@@ -273,11 +274,21 @@ public:
         if (string == nullptr) {
           throw std::runtime_error("Invalid string id: " + std::to_string(id));
         }
-        log() << "STRING " << *string << std::endl;
         char *cstr = const_cast<char *>(string->c_str());
         aint args = reinterpret_cast<aint>(cstr);
         void *bstr = Bstring(&args);
         push(bstr);
+        log() << "STRING " /*<< LAMA_TO_STR(bstr)*/ << std::endl;
+        break;
+      }
+      case STA: {
+        void *value = pop();
+        aint index = pop_aint();
+        void *arr = pop();
+        Bsta(arr, index, value);
+        push(value);
+        log() << "STA " /*<< LAMA_TO_STR(arr)*/ << "[" << UNBOX(index)
+              << "] = " /*<< LAMA_TO_STR(value)*/ << std::endl;
         break;
       }
       case JMP: {
@@ -301,49 +312,51 @@ public:
       case ST_G: {
         int32_t glob = ip_int32();
         check_global_index(glob);
-        aint value = top_aint();
+        void *value = top();
         globals[glob] = reinterpret_cast<void *>(value);
-        log() << "ST G(" << glob << ") " << UNBOX(value) << std::endl;
+        log() << "ST G(" << glob << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
         break;
       }
       case ST_L: {
         int32_t local = ip_int32();
         check_local_index(local);
-        aint value = top_aint();
-        write_local(local, reinterpret_cast<void *>(value));
-        log() << "ST L(" << local << ") " << UNBOX(value) << std::endl;
+        void *value = top();
+        write_local(local, value);
+        log() << "ST L(" << local
+              << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
         break;
       }
       case ST_A: {
         int32_t arg = ip_int32();
         check_argument_index(arg);
-        aint value = top_aint();
-        write_arg(arg, reinterpret_cast<void *>(value));
-        log() << "ST A(" << arg << ") " << UNBOX(value) << std::endl;
+        void *value = top();
+        write_arg(arg, value);
+        log() << "ST A(" << arg << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
         break;
       }
       case LD_G: {
         int32_t glob = ip_int32();
         check_global_index(glob);
-        aint value = reinterpret_cast<aint>(globals[glob]);
+        void *value = globals[glob];
         push(value);
-        log() << "LD G(" << glob << ") " << UNBOX(value) << std::endl;
+        log() << "LD G(" << glob << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
         break;
       }
       case LD_L: {
         int32_t local = ip_int32();
         check_local_index(local);
-        aint value = reinterpret_cast<aint>(read_local(local));
+        void *value = read_local(local);
         push(value);
-        log() << "LD L(" << local << ") " << UNBOX(value) << std::endl;
+        log() << "LD L(" << local
+              << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
         break;
       }
       case LD_A: {
         int32_t arg = ip_int32();
         check_argument_index(arg);
-        aint value = reinterpret_cast<aint>(read_arg(arg));
+        void *value = read_arg(arg);
         push(value);
-        log() << "LD A(" << arg << ") " << UNBOX(value) << std::endl;
+        log() << "LD A(" << arg << ") " /*<< LAMA_TO_STR(value)*/ << std::endl;
         break;
       }
       case DROP: {
@@ -356,8 +369,10 @@ public:
         void *arr = pop();
         void *result = Belem(arr, index);
         push(result);
-        log() << "ELEM " << &TO_DATA(arr)->contents << "[" << UNBOX(index)
-              << "]" << std::endl;
+        log() << "ELEM " /*<< LAMA_TO_STR(arr)*/ << "[" << UNBOX(index)
+              << "] -> "
+              /*<< LAMA_TO_STR(result)*/
+              << std::endl;
         break;
       }
       case LINE: {
