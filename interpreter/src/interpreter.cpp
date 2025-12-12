@@ -33,9 +33,12 @@ aint Ls__Infix_3333(void *p, void *q); // !!
 
 void *Bstring(aint *args); // TODO: should this be Lstring?
 void *Barray(aint *args, aint bn);
+void *Bsexp(aint *args, aint bn);
 void *Belem(void *p, aint i);
 void *Bsta(void *x, aint i, void *v);
+aint Btag(void *d, aint t, aint n);
 aint Llength(void *p);
+aint LtagHash(char *s);
 
 void __init();
 void __shutdown();
@@ -300,6 +303,32 @@ public:
         log() << "STRING " << std::string(TO_DATA(bstr)->contents) << std::endl;
         break;
       }
+      case SEXP: {
+        int32_t tag_string_id = ip_int32();
+        int32_t n = ip_int32();
+
+        const std::string *tag_str = bc.get_string(tag_string_id);
+        if (tag_str == nullptr) {
+          throw std::runtime_error("Invalid tag string id: " +
+                                   std::to_string(tag_string_id));
+        }
+        log() << "SEXP tag=" << *tag_str << " n=" << n << std::endl;
+
+        // Pop n field values from the operands stack (in reverse order to
+        // maintain correct order)
+        std::vector<aint> args(n + 1); // +1 for the tag hash at the end
+        for (int32_t i = n - 1; i >= 0; --i) {
+          args[i] = pop_aint();
+        }
+
+        // Convert tag string to hash and add it as the last argument
+        args[n] = LtagHash(const_cast<char *>(tag_str->c_str()));
+
+        // Call Bsexp with the arguments (fields + tag hash)
+        void *sexp = Bsexp(args.data(), BOX(n + 1));
+        push(sexp);
+        break;
+      }
       case STA: {
         void *value = pop();
         aint index = pop_aint();
@@ -386,6 +415,25 @@ public:
         void *result = Belem(arr, index);
         push(result);
         log() << "ELEM " << UNBOX(index) << std::endl;
+        break;
+      }
+      case TAG: {
+        int32_t tag_string_id = ip_int32();
+        int32_t n = ip_int32();
+
+        const std::string *tag_str = bc.get_string(tag_string_id);
+        if (tag_str == nullptr) {
+          throw std::runtime_error("Invalid tag string id: " +
+                                   std::to_string(tag_string_id));
+        }
+
+        void *value = pop();
+        aint tag_hash = LtagHash(const_cast<char *>(tag_str->c_str()));
+        aint result = Btag(value, tag_hash, BOX(n));
+        push(result);
+
+        log() << "TAG " << *tag_str << " " << n << " -> " << UNBOX(result)
+              << std::endl;
         break;
       }
       case LINE: {
