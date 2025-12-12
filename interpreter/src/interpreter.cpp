@@ -182,9 +182,10 @@ private:
   alignas(16) void *operands[MAX_OPERANDS] = {0};
   void **sp = nullptr;
   struct Frame {
-    int closure_values;
     int args;
     int locals;
+    void *closure_ptr; // Pointer to the closure object (for accessing closure
+                       // values)
   };
   std::vector<Frame> frames;
   void *frame_stack[MAX_FRAME_STACK_SIZE] = {0};
@@ -201,8 +202,8 @@ public:
 
   void interpret() {
     // Reset GC
-    __gc_stack_top = reinterpret_cast<size_t>(&operands);
-    __gc_stack_bottom = reinterpret_cast<size_t>(&operands + MAX_OPERANDS);
+    __gc_stack_top = reinterpret_cast<size_t>(operands);
+    __gc_stack_bottom = reinterpret_cast<size_t>(operands + MAX_OPERANDS);
     __init();
 
     // Reset pointers
@@ -214,7 +215,7 @@ public:
 
     // Partially setup the `main` frame: it has 2 arguments, the locals will be
     // set by BEGIN opcode
-    frames.push_back({0, 2, 0});
+    frames.push_back({2, 0, nullptr});
 
     // as a return address for `main` just set bytecode_start, there will not be
     // a inifinite loop, because when `frames` becomes empty, then interpreter
@@ -266,8 +267,8 @@ public:
         int32_t args_count = ip_int32();
         log() << "CALL " << STR_HEX(callee_offset, 8) << " " << args_count
               << std::endl;
-// create partially initialized frame
-        frames.push_back({0, args_count, 0});
+        // create partially initialized frame
+        frames.push_back({args_count, 0, nullptr});
         // push return address
         push_frame(reinterpret_cast<void *>(ip)); // the next instruction
         // push args
@@ -306,27 +307,21 @@ public:
         int64_t function_offset =
             reinterpret_cast<int64_t>(closure_contents[0]);
 
-        // Get captured values (closure_contents[1..n])
+        // Get number of captured values (closure_contents[1..n])
         int32_t captured_count = LEN(closure_data->data_header) - 1;
-        std::vector<void *> captured(captured_count);
-        for (int32_t i = 0; i < captured_count; ++i) {
-          captured[i] = closure_contents[i + 1];
-        }
 
         log() << "CALLC " << STR_HEX(function_offset, 8)
               << " args=" << args_count << " captured=" << captured_count
               << std::endl;
 
         // Partially initialize the frame
-        frames.push_back({captured_count, args_count, 0});
+        // Note: closure values are NOT copied to frame stack - they're accessed
+        // directly from the closure object via closure_ptr
+        // The captured_count is available from the closure object when needed
+        frames.push_back({args_count, 0, closure_ptr});
 
         // Push return address
         push_frame(reinterpret_cast<void *>(ip));
-
-        // Push the captured values to frame stack
-        for (int32_t i = 0; i < captured_count; ++i) {
-          push_frame(captured[i]);
-        }
 
         // Push arguments to frame stack (they will be read by BEGIN)
         for (int32_t i = 0; i < args_count; ++i) {
@@ -483,7 +478,6 @@ public:
       }
       case ST_L: {
         int32_t local = ip_int32();
-        check_local_index(local);
         void *value = top();
         write_local(local, value);
         log() << "ST L(" << local << ")" << std::endl;
@@ -491,10 +485,16 @@ public:
       }
       case ST_A: {
         int32_t arg = ip_int32();
-        check_argument_index(arg);
         void *value = top();
         write_arg(arg, value);
         log() << "ST A(" << arg << ")" << std::endl;
+        break;
+      }
+      case ST_C: {
+        int32_t closure_value_idx = ip_int32();
+        void *value = top();
+        write_closure_value(closure_value_idx, value);
+        log() << "ST C(" << closure_value_idx << ")" << std::endl;
         break;
       }
       case LD_G: {
@@ -571,15 +571,15 @@ public:
         int32_t function_offset = ip_int32();
         int32_t n = ip_int32();
 
-        log() << "CLOSURE " << STR_HEX(function_offset, 8) << " " << n << " ";
+        log() << "CLOSURE " << STR_HEX(function_offset, 8) << " " << n;
 
         // Prepare arguments for Bclosure: [function_offset, captured_value1,
         // ...]
         std::vector<aint> bclosure_args(n + 1);
         bclosure_args[0] = function_offset;
 
-        // Read n designations and load values onto stack
-        for (int32_t i = n; i >= 1; --i) {
+        // Read n designations in order and store them
+        for (int32_t i = 1; i <= n; ++i) {
           uint8_t designation_type = ip_byte();
           int32_t index = ip_int32();
           void *value = nullptr;
@@ -599,12 +599,12 @@ public:
           case 2: // Argument
             check_argument_index(index);
             value = read_arg(index);
-            log() << "A(" << index << ")";
+            log() << " A(" << index << ")";
             break;
           case 3: { // Closure (from current closure)
             check_closure_value_index(index);
             value = read_closure_value(index);
-            log() << "C(" << index << ")";
+            log() << " C(" << index << ")";
             break;
           }
           default:
@@ -615,7 +615,10 @@ public:
         }
 
         // Call Bclosure to create the closure
-        void *closure = Bclosure(bclosure_args.data(), BOX(n /* +1? */));
+        // Bclosure expects: args[0] = function_offset, args[1..n] = captured
+        // values. The second argument is n (number of captured values), not n+1
+        // Bclosure allocates n+1 elements internally
+        void *closure = Bclosure(bclosure_args.data(), BOX(n));
         push(closure);
 
         log() << std::endl;
@@ -710,19 +713,20 @@ private:
     check_frames_not_empty();
     check_closure_value_index(index);
     const Frame &frame = frames.back();
-    return *(fp - frame.closure_values - frame.args - frame.locals +
-             index); // [ret] [closure vals] [args] [locals] fp
-    //                             ^---- index points somewhere here
+    // Closure values are stored directly in the closure object
+    check(frame.closure_ptr != nullptr,
+          "read_closure_value: no closure in frame");
+    void **closure_contents = (void **)frame.closure_ptr;
+    return closure_contents[index + 1]; // +1 because index 0 is function_offset
   }
 
   void *read_arg(int index) {
     check_frames_not_empty();
     check_argument_index(index);
     const Frame &frame = frames.back();
-    return *(
-        fp - frame.args - frame.locals +
-        index); // [ret] [closure vals] [args] [locals] fp
-                //                         ^---- index points somewhere here
+    return *(fp - frame.args - frame.locals +
+             index); // [ret] [args] [locals] fp
+                     //         ^---- index points somewhere here
   }
 
   void *read_local(int index) {
@@ -730,16 +734,21 @@ private:
     check_local_index(index);
     const Frame &frame = frames.back();
     return *(fp - frame.locals +
-             index); // [ret] [closure vals] [args] [locals] fp
-                     //                                ^---- index points
-                     //                                somewhere here
+             index); // [ret] [args] [locals] fp
+                     //                    ^---- index points somewhere here
   }
 
   void write_closure_value(int index, void *value) {
     check_frames_not_empty();
     check_closure_value_index(index);
     const Frame &frame = frames.back();
-    *(fp - frame.closure_values - frame.args - frame.locals + index) = value;
+    // Closure values are stored directly in the closure object, not in frame
+    // stack
+    check(frame.closure_ptr != nullptr,
+          "write_closure_value: no closure in frame");
+    void **closure_contents = (void **)frame.closure_ptr;
+    closure_contents[index + 1] =
+        value; // +1 because index 0 is function_offset
   }
 
   void write_arg(int index, void *value) {
@@ -763,11 +772,13 @@ private:
 
   void pop_frame() {
     check_frames_not_empty();
-    auto [closure_values, args, locals] = frames.back();
+    auto [args, locals, closure_ptr] = frames.back();
     frames.pop_back();
 
-    check_frames_underflow(closure_values + args + locals + 1);
-    fp -= (closure_values + args + locals + 1); // +1 for return address
+    // Frame stack layout: [ret] [args] [locals] fp
+    // Closure values are NOT on the frame stack - they're in the closure object
+    check_frames_underflow(args + locals + 1);
+    fp -= (args + locals + 1); // +1 for return address
     set_ip(reinterpret_cast<uint8_t *>(
         *fp)); // `fp` now dereferences to return address
   }
@@ -824,8 +835,15 @@ private:
   }
 
   void check_closure_value_index(int index) {
-    check(index >= 0 && index < frames.back().closure_values,
-          "Invalid closure value index: " + std::to_string(index));
+    check_frames_not_empty();
+    const Frame &frame = frames.back();
+    check(frame.closure_ptr != nullptr,
+          "check_closure_value_index: no closure in frame");
+    data *closure_data = TO_DATA(frame.closure_ptr);
+    int32_t captured_count = LEN(closure_data->data_header) - 1;
+    check(index >= 0 && index < captured_count,
+          "Invalid closure value index: " + std::to_string(index) + " / " +
+              std::to_string(captured_count));
   }
 
   void check_argument_index(int index) {
