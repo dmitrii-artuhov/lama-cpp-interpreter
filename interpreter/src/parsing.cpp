@@ -25,25 +25,30 @@ BytecodeFile::BytecodeFile(const std::string &file_path)
   }
 
   // Read string table: stringtab_size bytes
-  std::vector<char> string_table(stringtab_size);
-  file.read(string_table.data(), stringtab_size);
+  string_table_buffer.resize(stringtab_size);
+  file.read(string_table_buffer.data(), stringtab_size);
 
   if (file.gcount() != static_cast<std::streamsize>(stringtab_size)) {
     throw std::runtime_error("Failed to read complete string table");
   }
 
   // Parse strings from string table (null-terminated strings)
+  // Store ALL string start positions, including empty strings, to handle
+  // any byte offset that might be referenced in the bytecode
+  // This matches how byterun.c's get_string works: it returns &string_ptr[pos]
   uint32_t string_index = 0;
-  const char *str_ptr = string_table.data();
-  const char *str_end = string_table.data() + stringtab_size;
+  const char *str_ptr = string_table_buffer.data();
+  const char *str_end = string_table_buffer.data() + stringtab_size;
 
-  while (str_ptr < str_end) {
-    size_t len = std::strlen(str_ptr);
-    if (len == 0 && str_ptr < str_end - 1) {
-      // Empty string or end of table
+  while (str_ptr < str_end && string_index < stringtab_size) {
+    if (*str_ptr == '\0') {
+      strings[string_index] = std::string("");
       str_ptr++;
+      string_index++;
       continue;
     }
+
+    size_t len = std::strlen(str_ptr);
     if (str_ptr + len >= str_end) {
       break;
     }
@@ -90,6 +95,7 @@ BytecodeFile::BytecodeFile(BytecodeFile &&other) noexcept
       global_area_size(other.global_area_size),
       public_symbols_number(other.public_symbols_number),
       strings(std::move(other.strings)),
+      string_table_buffer(std::move(other.string_table_buffer)),
       public_symbols(std::move(other.public_symbols)), bytecode(other.bytecode),
       bytecode_size(other.bytecode_size) {
   other.bytecode = nullptr;
@@ -104,6 +110,7 @@ BytecodeFile &BytecodeFile::operator=(BytecodeFile &&other) noexcept {
     public_symbols_number = other.public_symbols_number;
     strings = std::move(other.strings);
     public_symbols = std::move(other.public_symbols);
+    string_table_buffer = std::move(other.string_table_buffer);
     bytecode = other.bytecode;
     bytecode_size = other.bytecode_size;
     other.bytecode = nullptr;
@@ -127,6 +134,40 @@ size_t BytecodeFile::get_bytecode_size() const { return bytecode_size; }
 const std::string *BytecodeFile::get_string(uint32_t index) const {
   auto it = strings.find(index);
   return (it != strings.end()) ? &it->second : nullptr;
+  // if (it != strings.end()) {
+  //   return &it->second;
+  // }
+
+  // // If not found, try direct byte-offset access (like byterun.c does)
+  // // This handles cases where the bytecode references a string offset we
+  // didn't
+  // // parse (e.g., due to empty strings or padding in the string table)
+  // if (index < string_table_buffer.size()) {
+  //   const char *str_ptr = string_table_buffer.data() + index;
+  //   const char *str_end =
+  //       string_table_buffer.data() + string_table_buffer.size();
+
+  //   // Check if there's a valid null-terminated string at this offset
+  //   if (str_ptr < str_end && *str_ptr != '\0') {
+  //     size_t len = std::strlen(str_ptr);
+  //     if (str_ptr + len < str_end) {
+  //       // Found a valid string - cache it in the map for future lookups
+  //       // (we need to modify the map, so we need a mutable reference or use
+  //       a
+  //       // different approach) For now, we'll create a temporary string and
+  //       // return it, but this won't work with const Let's use a mutable
+  //       static
+  //       // cache or thread_local, or better: make strings mutable Actually,
+  //       the
+  //       // simplest fix: ensure we parse ALL strings, including empty ones
+  //       But
+  //       // for now, let's just return nullptr and fix the parsing
+  //       return nullptr;
+  //     }
+  //   }
+  // }
+
+  // return nullptr;
 }
 
 // Get code offset for public symbol

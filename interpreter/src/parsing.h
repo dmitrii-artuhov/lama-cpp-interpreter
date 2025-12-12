@@ -16,6 +16,8 @@ private:
 
   // String table: maps string index to string content
   std::map<uint32_t, std::string> strings;
+  // Raw string table buffer for direct byte-offset access
+  std::vector<char> string_table_buffer;
 
   // Public symbols: maps symbol name to code offset
   std::map<std::string, uint32_t> public_symbols;
