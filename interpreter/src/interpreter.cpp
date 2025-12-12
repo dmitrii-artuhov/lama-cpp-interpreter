@@ -60,7 +60,7 @@ extern size_t __gc_stack_top, __gc_stack_bottom;
 size_t __start_custom_data, __stop_custom_data;
 
 #define MAX_OPERANDS 32768
-#define MAX_FRAME_STACK_SIZE 1024
+#define MAX_FRAME_STACK_SIZE 32768
 
 enum Opcode : uint8_t {
   BINOP_PLUS = 0x01,
