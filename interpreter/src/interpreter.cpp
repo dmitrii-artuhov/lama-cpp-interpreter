@@ -263,15 +263,19 @@ public:
         int32_t callee_offset = ip_int32();
         // Note: args will be handled by the `BEGIN` opcode anyway, so we ignore
         // them here
-        int32_t args = ip_int32();
-        log() << "CALL " << callee_offset << " " << args << std::endl;
-        // create partially initialized frame
-        frames.push_back({0, args, 0});
+        int32_t args_count = ip_int32();
+        log() << "CALL " << STR_HEX(callee_offset, 8) << " " << args_count
+              << std::endl;
+// create partially initialized frame
+        frames.push_back({0, args_count, 0});
         // push return address
         push_frame(reinterpret_cast<void *>(ip)); // the next instruction
         // push args
-        for (int i = 0; i < args; ++i) {
-          void *arg = pop();
+        std::vector<void *> args(args_count);
+        for (int i = args_count - 1; i >= 0; --i) {
+          args[i] = pop();
+        }
+        for (void *arg : args) {
           push_frame(arg);
         }
         // go to callee
@@ -453,7 +457,7 @@ public:
       }
       case JMP: {
         int32_t offset = ip_int32();
-        log() << "JMP " << offset << std::endl;
+        log() << "JMP " << STR_HEX(offset, 8) << std::endl;
         set_ip(bytecode_start + offset);
         break;
       }
@@ -461,8 +465,8 @@ public:
       case CJMP_NZ: {
         int32_t offset = ip_int32();
         aint value = UNBOX(pop_aint());
-        log() << (opcode == CJMP_Z ? "CJMP_Z " : "CJMP_NZ ") << offset << " "
-              << value << std::endl;
+        log() << (opcode == CJMP_Z ? "CJMP_Z " : "CJMP_NZ ")
+              << STR_HEX(offset, 8) << " " << value << std::endl;
         if ((opcode == CJMP_Z && value == 0) ||
             (opcode == CJMP_NZ && value != 0)) {
           set_ip(bytecode_start + offset);
