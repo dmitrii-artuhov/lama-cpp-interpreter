@@ -34,6 +34,7 @@ aint Ls__Infix_3333(void *p, void *q); // !!
 void *Bstring(aint *args); // TODO: should this be Lstring?
 void *Barray(aint *args, aint bn);
 void *Bsexp(aint *args, aint bn);
+void *Bclosure(aint *args, aint bn);
 void *Belem(void *p, aint i);
 void *Bsta(void *x, aint i, void *v);
 aint Btag(void *d, aint t, aint n);
@@ -149,7 +150,12 @@ private:
   uint8_t *ip = nullptr;
   alignas(16) void *operands[MAX_OPERANDS] = {0};
   void **sp = nullptr;
-  std::vector<std::pair<int, int>> frames; // (args, locals) for current calls
+  struct Frame {
+    int closure_values;
+    int args;
+    int locals;
+  };
+  std::vector<Frame> frames;
   void *frame_stack[MAX_FRAME_STACK_SIZE] = {0};
   void **fp = nullptr;
 
@@ -175,14 +181,18 @@ public:
     fp = frame_stack;
     frames.clear();
 
-    // `main` always has 2 arguments, so its `BEGIN` expects 2 values on
-    // operands stack
-    push(BOX(0));
-    push(BOX(0));
+    // Partially setup the `main` frame: it has 2 arguments, the locals will be
+    // set by BEGIN opcode
+    frames.push_back({0, 2, 0});
+
     // as a return address for `main` just set bytecode_start, there will not be
     // a inifinite loop, because when `frames` becomes empty, then interpreter
     // will stop
     push_frame(reinterpret_cast<void *>(bytecode_start));
+
+    // `main` always has 2 arguments, so we push them on frame stack
+    push_frame(reinterpret_cast<void *>(BOX(0)));
+    push_frame(reinterpret_cast<void *>(BOX(0)));
 
     do {
       log() << STR_HEX(ip - bytecode_start, 8) << ": ";
@@ -199,18 +209,19 @@ public:
         }
         break;
       }
-      case BEGIN: {
+      case BEGIN:
+      case BEGIN_WITH_CLOSURE: {
         int32_t args = ip_int32();
         int32_t locals = ip_int32();
         log() << "BEGIN " << args << " " << locals << std::endl;
 
-        frames.push_back({args, locals});
-        // Note: return address is stored by the `CALL` opcode
-        // push args (take them from operands)
-        for (int i = 0; i < args; ++i) {
-          void *arg = pop();
-          push_frame(arg);
-        }
+        check_frames_not_empty();
+        // Fully initialize the frame
+        frames.back().locals = locals;
+
+        // Note: return address, closure values, and args are stored by the
+        // CALL/CALLC opcodes
+
         // push locals (set to zeros)
         for (int i = 0; i < locals; ++i) {
           push_frame(reinterpret_cast<void *>(BOX(0)));
@@ -223,10 +234,72 @@ public:
         // them here
         int32_t args = ip_int32();
         log() << "CALL " << callee_offset << " " << args << std::endl;
+        // create partially initialized frame
+        frames.push_back({0, args, 0});
         // push return address
         push_frame(reinterpret_cast<void *>(ip)); // the next instruction
+        // push args
+        for (int i = 0; i < args; ++i) {
+          void *arg = pop();
+          push_frame(arg);
+        }
         // go to callee
         set_ip(bytecode_start + callee_offset);
+        break;
+      }
+      case CALLC: {
+        // Format: n (int32) - number of arguments
+        int32_t args_count = ip_int32();
+
+        // Pop n arguments from stack
+        std::vector<void *> args(args_count);
+        for (int32_t i = args_count - 1; i >= 0; --i) {
+          args[i] = pop();
+        }
+
+        // Pop closure from stack
+        void *closure_ptr = pop();
+
+        // Extract function offset and closure data from closure object
+        // Closure structure: [function_offset, captured_value1, ...]
+        data *closure_data = TO_DATA(closure_ptr);
+        check(TAG(closure_data->data_header) == CLOSURE_TAG,
+              "CALLC: expected closure tag (" + STR_HEX(CLOSURE_TAG, 8) +
+                  "), got " + STR_HEX(TAG(closure_data->data_header), 8));
+
+        void **closure_contents = (void **)closure_ptr;
+        int64_t function_offset =
+            reinterpret_cast<int64_t>(closure_contents[0]);
+
+        // Get captured values (closure_contents[1..n])
+        int32_t captured_count = LEN(closure_data->data_header) - 1;
+        std::vector<void *> captured(captured_count);
+        for (int32_t i = 0; i < captured_count; ++i) {
+          captured[i] = closure_contents[i + 1];
+        }
+
+        log() << "CALLC " << STR_HEX(function_offset, 8)
+              << " args=" << args_count << " captured=" << captured_count
+              << std::endl;
+
+        // Partially initialize the frame
+        frames.push_back({captured_count, args_count, 0});
+
+        // Push return address
+        push_frame(reinterpret_cast<void *>(ip));
+
+        // Push the captured values to frame stack
+        for (int32_t i = 0; i < captured_count; ++i) {
+          push_frame(captured[i]);
+        }
+
+        // Push arguments to frame stack (they will be read by BEGIN)
+        for (int32_t i = 0; i < args_count; ++i) {
+          push_frame(args[i]);
+        }
+
+        // Go to callee
+        set_ip(bytecode_start + function_offset);
         break;
       }
       case CALL_READ: {
@@ -413,6 +486,13 @@ public:
         log() << "LD A(" << arg << ")" << std::endl;
         break;
       }
+      case LD_C: {
+        int32_t closure_value_idx = ip_int32();
+        void *value = read_closure_value(closure_value_idx);
+        push(value);
+        log() << "LD C(" << closure_value_idx << ")" << std::endl;
+        break;
+      }
       case DROP: {
         log() << "DROP" << std::endl;
         pop();
@@ -449,6 +529,61 @@ public:
 
         log() << "TAG " << *tag_str << " " << n << " -> " << UNBOX(result)
               << std::endl;
+        break;
+      }
+      case CLOSURE: {
+        // Format: function_offset (int32), n (int32), then n designations
+        int32_t function_offset = ip_int32();
+        int32_t n = ip_int32();
+
+        log() << "CLOSURE " << STR_HEX(function_offset, 8) << " " << n << " ";
+
+        // Prepare arguments for Bclosure: [function_offset, captured_value1,
+        // ...]
+        std::vector<aint> bclosure_args(n + 1);
+        bclosure_args[0] = function_offset;
+
+        // Read n designations and load values onto stack
+        for (int32_t i = n; i >= 1; --i) {
+          uint8_t designation_type = ip_byte();
+          int32_t index = ip_int32();
+          void *value = nullptr;
+
+          check_frames_not_empty();
+          switch (designation_type) {
+          case 0: // Global
+            check_global_index(index);
+            value = globals[index];
+            log() << "G(" << index << ")";
+            break;
+          case 1: // Local
+            check_local_index(index);
+            value = read_local(index);
+            log() << "L(" << index << ")";
+            break;
+          case 2: // Argument
+            check_argument_index(index);
+            value = read_arg(index);
+            log() << "A(" << index << ")";
+            break;
+          case 3: { // Closure (from current closure)
+            check_closure_value_index(index);
+            value = read_closure_value(index);
+            log() << "C(" << index << ")";
+            break;
+          }
+          default:
+            fail_with("Invalid designation type of CLOSURE: " +
+                      std::to_string(designation_type));
+          }
+          bclosure_args[i] = reinterpret_cast<aint>(value);
+        }
+
+        // Call Bclosure to create the closure
+        void *closure = Bclosure(bclosure_args.data(), BOX(n /* +1? */));
+        push(closure);
+
+        log() << std::endl;
         break;
       }
       case LINE: {
@@ -511,36 +646,54 @@ private:
   aint top_aint() { return reinterpret_cast<aint>(top()); }
 
   // frame stack operations
+  void *read_closure_value(int index) {
+    check_frames_not_empty();
+    check_closure_value_index(index);
+    const Frame &frame = frames.back();
+    return *(fp - frame.closure_values - frame.args - frame.locals +
+             index); // [ret] [closure vals] [args] [locals] fp
+    //                             ^---- index points somewhere here
+  }
+
   void *read_arg(int index) {
     check_frames_not_empty();
     check_argument_index(index);
-    auto [args, locals] = frames.back();
-    return *(fp - locals - args +
-             index); // [ret] [args] [locals] fp
-                     //         ^---- index points somewhere here
+    const Frame &frame = frames.back();
+    return *(
+        fp - frame.args - frame.locals +
+        index); // [ret] [closure vals] [args] [locals] fp
+                //                         ^---- index points somewhere here
   }
 
   void *read_local(int index) {
     check_frames_not_empty();
     check_local_index(index);
-    auto [args, locals] = frames.back();
-    return *(fp - locals +
-             index); // [ret] [args] [locals] fp
-                     //                 ^---- index points somewhere here
+    const Frame &frame = frames.back();
+    return *(fp - frame.locals +
+             index); // [ret] [closure vals] [args] [locals] fp
+                     //                                ^---- index points
+                     //                                somewhere here
+  }
+
+  void write_closure_value(int index, void *value) {
+    check_frames_not_empty();
+    check_closure_value_index(index);
+    const Frame &frame = frames.back();
+    *(fp - frame.closure_values - frame.args - frame.locals + index) = value;
   }
 
   void write_arg(int index, void *value) {
     check_frames_not_empty();
     check_argument_index(index);
-    auto [args, locals] = frames.back();
-    *(fp - locals - args + index) = value;
+    const Frame &frame = frames.back();
+    *(fp - frame.args - frame.locals + index) = value;
   }
 
   void write_local(int index, void *value) {
     check_frames_not_empty();
     check_local_index(index);
-    auto [args, locals] = frames.back();
-    *(fp - locals + index) = value;
+    const Frame &frame = frames.back();
+    *(fp - frame.locals + index) = value;
   }
 
   void push_frame(void *value) {
@@ -550,11 +703,11 @@ private:
 
   void pop_frame() {
     check_frames_not_empty();
-    auto [args, locals] = frames.back();
+    auto [closure_values, args, locals] = frames.back();
     frames.pop_back();
 
-    check_frames_underflow(args + locals + 1);
-    fp -= (args + locals + 1); // +1 for return address
+    check_frames_underflow(closure_values + args + locals + 1);
+    fp -= (closure_values + args + locals + 1); // +1 for return address
     set_ip(reinterpret_cast<uint8_t *>(
         *fp)); // `fp` now dereferences to return address
   }
@@ -568,11 +721,18 @@ private:
   void write_value(aint value) { Lwrite(value); }
 
   // checks
+  void fail_with(const std::string &msg) { check(false, msg); }
+
+  void check(bool value, const std::string &message) {
+    if (!value) {
+      throw InstructionException(message, ip - bc.get_bytecode());
+    }
+  }
+
   void check_ip_valid(uint8_t *ip) {
     uint8_t *bytecode_start = bc.get_bytecode();
-    if (ip < bytecode_start || ip >= bytecode_start + bc.get_bytecode_size()) {
-      throw InstructionException("Invalid IP", ip - bytecode_start);
-    }
+    check(ip >= bytecode_start && ip < bytecode_start + bc.get_bytecode_size(),
+          "Invalid IP");
   }
 
   void check_stack_overflow() {
@@ -600,23 +760,22 @@ private:
   }
 
   void check_frames_not_empty() {
-    if (frames.empty()) {
-      throw InstructionException("Empty 'frames' stack",
-                                 ip - bc.get_bytecode());
-    }
+    check(!frames.empty(), "Empty 'frames' stack");
+  }
+
+  void check_closure_value_index(int index) {
+    check(index >= 0 && index < frames.back().closure_values,
+          "Invalid closure value index: " + std::to_string(index));
   }
 
   void check_argument_index(int index) {
-    if (index < 0 || index >= frames.back().first) {
-      throw InstructionException("Invalid argument index",
-                                 ip - bc.get_bytecode());
-    }
+    check(index >= 0 && index < frames.back().args,
+          "Invalid argument index: " + std::to_string(index));
   }
 
   void check_local_index(int index) {
-    if (index < 0 || index >= frames.back().second) {
-      throw InstructionException("Invalid local index", ip - bc.get_bytecode());
-    }
+    check(index >= 0 && index < frames.back().locals,
+          "Invalid local index: " + std::to_string(index));
   }
 
   void check_global_index(int32_t index) {
