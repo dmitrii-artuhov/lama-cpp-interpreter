@@ -43,6 +43,7 @@ aint Llength(void *p);
 aint LtagHash(char *s);
 
 // Pattern matching funcions
+aint Barray_patt(void *x, aint n);   // array with length n
 aint Bstring_patt(void *x, void *y); // =str
 aint Bstring_tag_patt(void *x);      // #string
 aint Barray_tag_patt(void *x);       // #array
@@ -564,6 +565,16 @@ public:
 
         log() << "TAG " << *tag_str << " " << n << " -> " << UNBOX(result)
               << std::endl;
+        break;
+      }
+      case ARRAY: {
+        int32_t n = ip_int32();
+
+        void *value = pop();
+        aint result = Barray_patt(value, BOX(n));
+        push(result);
+
+        log() << "ARRAY " << n << " -> " << UNBOX(result) << std::endl;
         break;
       }
       case CLOSURE: {
