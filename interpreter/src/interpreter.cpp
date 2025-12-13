@@ -230,14 +230,14 @@ public:
     push_frame(reinterpret_cast<void *>(BOX(0)));
 
     do {
-      log() << STR_HEX(ip - bytecode_start, 8) << ": ";
+      LOG(log() << STR_HEX(ip - bytecode_start, 8) << ": ");
       uint8_t opcode = *ip++;
       uint8_t l = opcode & 0x0F;
 
       switch (opcode) {
       case END: {
         pop_frame();
-        log() << "END" << std::endl;
+        LOG(log() << "END" << std::endl);
         if (frames.empty()) {
           __shutdown();
           return; // main finished
@@ -248,7 +248,7 @@ public:
       case BEGIN_WITH_CLOSURE: {
         int32_t args = ip_int32();
         int32_t locals = ip_int32();
-        log() << "BEGIN " << args << " " << locals << std::endl;
+        LOG(log() << "BEGIN " << args << " " << locals << std::endl);
 
         check_frames_not_empty();
         // Fully initialize the frame
@@ -268,8 +268,8 @@ public:
         // Note: args will be handled by the `BEGIN` opcode anyway, so we ignore
         // them here
         int32_t args_count = ip_int32();
-        log() << "CALL " << STR_HEX(callee_offset, 8) << " " << args_count
-              << std::endl;
+        LOG(log() << "CALL " << STR_HEX(callee_offset, 8) << " " << args_count
+                  << std::endl);
         // create partially initialized frame
         frames.push_back({args_count, 0, nullptr});
         // push return address
@@ -313,9 +313,8 @@ public:
         // Get number of captured values (closure_contents[1..n])
         int32_t captured_count = LEN(closure_data->data_header) - 1;
 
-        log() << "CALLC " << STR_HEX(function_offset, 8)
-              << " args=" << args_count << " captured=" << captured_count
-              << std::endl;
+        LOG(log() << "CALLC " << STR_HEX(function_offset, 8) << " args="
+                  << args_count << " captured=" << captured_count << std::endl);
 
         // Partially initialize the frame
         // Note: closure values are NOT copied to frame stack - they're accessed
@@ -337,20 +336,20 @@ public:
       }
       case CALL_READ: {
         aint value = read_value();
-        log() << "CALL_READ -> " << UNBOX(value) << std::endl;
+        LOG(log() << "CALL_READ -> " << UNBOX(value) << std::endl);
         push(value);
         break;
       }
       case CALL_WRITE: {
         aint value = top_aint(); // TODO: why it does not `pop` though?
-        log() << "CALL_WRITE -> " << UNBOX(value) << std::endl;
+        LOG(log() << "CALL_WRITE -> " << UNBOX(value) << std::endl);
         write_value(value);
         break;
       }
       case CALL_LENGTH: {
         void *arr = pop();
         aint length = Llength(arr);
-        log() << "CALL_LENGTH -> " << UNBOX(length) << std::endl;
+        LOG(log() << "CALL_LENGTH -> " << UNBOX(length) << std::endl);
         push(length);
         break;
       }
@@ -359,12 +358,12 @@ public:
         aint args = reinterpret_cast<aint>(value);
         void *lstr = Lstring(&args);
         push(lstr);
-        log() << "CALL_STRING -> " << TO_DATA(lstr)->contents << std::endl;
+        LOG(log() << "CALL_STRING -> " << TO_DATA(lstr)->contents << std::endl);
         break;
       }
       case CALL_ARRAY: {
         int32_t n = ip_int32();
-        log() << "CALL_ARRAY " << n << std::endl;
+        LOG(log() << "CALL_ARRAY " << n << std::endl);
 
         // Pop n values from the operands stack (in reverse order to maintain
         // correct order)
@@ -394,14 +393,14 @@ public:
         void *lhs = pop();
         aint result = binop_functions[l - 1](lhs, rhs);
         push(result);
-        log() << "BINOP " << UNBOX(reinterpret_cast<aint>(lhs)) << " "
-              << ops[l - 1] << " " << UNBOX(reinterpret_cast<aint>(rhs))
-              << " = " << UNBOX(result) << std::endl;
+        LOG(log() << "BINOP " << UNBOX(reinterpret_cast<aint>(lhs)) << " "
+                  << ops[l - 1] << " " << UNBOX(reinterpret_cast<aint>(rhs))
+                  << " = " << UNBOX(result) << std::endl);
         break;
       }
       case CONST: {
         int32_t value = ip_int32();
-        log() << "CONST " << value << std::endl;
+        LOG(log() << "CONST " << value << std::endl);
         push(BOX(value));
         break;
       }
@@ -415,7 +414,8 @@ public:
         aint args = reinterpret_cast<aint>(cstr);
         void *bstr = Bstring(&args);
         push(bstr);
-        log() << "STRING " << std::string(TO_DATA(bstr)->contents) << std::endl;
+        LOG(log() << "STRING " << std::string(TO_DATA(bstr)->contents)
+                  << std::endl);
         break;
       }
       case SEXP: {
@@ -425,7 +425,7 @@ public:
         const std::string *tag_str = bc.get_string(tag_string_id);
         check(tag_str != nullptr,
               "Invalid tag string id: " + STR_HEX(tag_string_id, 8));
-        log() << "SEXP tag=" << *tag_str << " n=" << n << std::endl;
+        LOG(log() << "SEXP tag=" << *tag_str << " n=" << n << std::endl);
 
         // Pop n field values from the operands stack (in reverse order to
         // maintain correct order)
@@ -448,12 +448,12 @@ public:
         void *arr = pop();
         Bsta(arr, index, value);
         push(value);
-        log() << "STA " << UNBOX(index) << std::endl;
+        LOG(log() << "STA " << UNBOX(index) << std::endl);
         break;
       }
       case JMP: {
         int32_t offset = ip_int32();
-        log() << "JMP " << STR_HEX(offset, 8) << std::endl;
+        LOG(log() << "JMP " << STR_HEX(offset, 8) << std::endl);
         set_ip(bytecode_start + offset);
         break;
       }
@@ -461,8 +461,8 @@ public:
       case CJMP_NZ: {
         int32_t offset = ip_int32();
         aint value = UNBOX(pop_aint());
-        log() << (opcode == CJMP_Z ? "CJMP_Z " : "CJMP_NZ ")
-              << STR_HEX(offset, 8) << " " << value << std::endl;
+        LOG(log() << (opcode == CJMP_Z ? "CJMP_Z " : "CJMP_NZ ")
+                  << STR_HEX(offset, 8) << " " << value << std::endl);
         if ((opcode == CJMP_Z && value == 0) ||
             (opcode == CJMP_NZ && value != 0)) {
           set_ip(bytecode_start + offset);
@@ -474,28 +474,28 @@ public:
         check_global_index(glob);
         void *value = top();
         globals[glob] = reinterpret_cast<void *>(value);
-        log() << "ST G(" << glob << ")" << std::endl;
+        LOG(log() << "ST G(" << glob << ")" << std::endl);
         break;
       }
       case ST_L: {
         int32_t local = ip_int32();
         void *value = top();
         write_local(local, value);
-        log() << "ST L(" << local << ")" << std::endl;
+        LOG(log() << "ST L(" << local << ")" << std::endl);
         break;
       }
       case ST_A: {
         int32_t arg = ip_int32();
         void *value = top();
         write_arg(arg, value);
-        log() << "ST A(" << arg << ")" << std::endl;
+        LOG(log() << "ST A(" << arg << ")" << std::endl);
         break;
       }
       case ST_C: {
         int32_t closure_value_idx = ip_int32();
         void *value = top();
         write_closure_value(closure_value_idx, value);
-        log() << "ST C(" << closure_value_idx << ")" << std::endl;
+        LOG(log() << "ST C(" << closure_value_idx << ")" << std::endl);
         break;
       }
       case LD_G: {
@@ -503,7 +503,7 @@ public:
         check_global_index(glob);
         void *value = globals[glob];
         push(value);
-        log() << "LD G(" << glob << ")" << std::endl;
+        LOG(log() << "LD G(" << glob << ")" << std::endl);
         break;
       }
       case LD_L: {
@@ -511,7 +511,7 @@ public:
         check_local_index(local);
         void *value = read_local(local);
         push(value);
-        log() << "LD L(" << local << ")" << std::endl;
+        LOG(log() << "LD L(" << local << ")" << std::endl);
         break;
       }
       case LD_A: {
@@ -519,23 +519,23 @@ public:
         check_argument_index(arg);
         void *value = read_arg(arg);
         push(value);
-        log() << "LD A(" << arg << ")" << std::endl;
+        LOG(log() << "LD A(" << arg << ")" << std::endl);
         break;
       }
       case LD_C: {
         int32_t closure_value_idx = ip_int32();
         void *value = read_closure_value(closure_value_idx);
         push(value);
-        log() << "LD C(" << closure_value_idx << ")" << std::endl;
+        LOG(log() << "LD C(" << closure_value_idx << ")" << std::endl);
         break;
       }
       case DROP: {
-        log() << "DROP" << std::endl;
+        LOG(log() << "DROP" << std::endl);
         pop();
         break;
       }
       case DUP: {
-        log() << "DUP" << std::endl;
+        LOG(log() << "DUP" << std::endl);
         void *value = top();
         push(value);
         break;
@@ -545,7 +545,7 @@ public:
         void *arr = pop();
         void *result = Belem(arr, index);
         push(result);
-        log() << "ELEM " << UNBOX(index) << std::endl;
+        LOG(log() << "ELEM " << UNBOX(index) << std::endl);
         break;
       }
       case TAG: {
@@ -563,8 +563,8 @@ public:
         aint result = Btag(value, tag_hash, BOX(n));
         push(result);
 
-        log() << "TAG " << *tag_str << " " << n << " -> " << UNBOX(result)
-              << std::endl;
+        LOG(log() << "TAG " << *tag_str << " " << n << " -> " << UNBOX(result)
+                  << std::endl);
         break;
       }
       case ARRAY: {
@@ -574,7 +574,7 @@ public:
         aint result = Barray_patt(value, BOX(n));
         push(result);
 
-        log() << "ARRAY " << n << " -> " << UNBOX(result) << std::endl;
+        LOG(log() << "ARRAY " << n << " -> " << UNBOX(result) << std::endl);
         break;
       }
       case CLOSURE: {
@@ -582,7 +582,7 @@ public:
         int32_t function_offset = ip_int32();
         int32_t n = ip_int32();
 
-        log() << "CLOSURE " << STR_HEX(function_offset, 8) << " " << n;
+        LOG(log() << "CLOSURE " << STR_HEX(function_offset, 8) << " " << n);
 
         // Prepare arguments for Bclosure: [function_offset, captured_value1,
         // ...]
@@ -600,22 +600,22 @@ public:
           case 0: // Global
             check_global_index(index);
             value = globals[index];
-            log() << "G(" << index << ")";
+            LOG(log() << "G(" << index << ")");
             break;
           case 1: // Local
             check_local_index(index);
             value = read_local(index);
-            log() << "L(" << index << ")";
+            LOG(log() << "L(" << index << ")");
             break;
           case 2: // Argument
             check_argument_index(index);
             value = read_arg(index);
-            log() << " A(" << index << ")";
+            LOG(log() << " A(" << index << ")");
             break;
           case 3: { // Closure (from current closure)
             check_closure_value_index(index);
             value = read_closure_value(index);
-            log() << " C(" << index << ")";
+            LOG(log() << " C(" << index << ")");
             break;
           }
           default:
@@ -632,7 +632,7 @@ public:
         void *closure = Bclosure(bclosure_args.data(), BOX(n));
         push(closure);
 
-        log() << std::endl;
+        LOG(log() << std::endl);
         break;
       }
       case PATT_STRCMP:
@@ -657,11 +657,12 @@ public:
         }
         push(result);
 
-        log() << "PATT " << patts[l] << " -> " << UNBOX(result) << std::endl;
+        LOG(log() << "PATT " << patts[l] << " -> " << UNBOX(result)
+                  << std::endl);
         break;
       }
       case LINE: {
-        log() << "LINE " << ip_int32() << std::endl;
+        LOG(log() << "LINE " << ip_int32() << std::endl);
         break;
       }
       default: {
@@ -890,29 +891,29 @@ int main(int argc, char *argv[]) {
     BytecodeFile bc(argv[1]);
     Interpreter interpreter(bc);
 
-    log() << "Loaded bytecode file:" << std::endl;
-    log() << "  String table size: " << bc.get_stringtab_size() << " bytes"
-          << std::endl;
-    log() << "  Global area size: " << bc.get_global_area_size() << " words"
-          << std::endl;
-    log() << "  Strings loaded: " << bc.get_strings().size() << std::endl;
+    LOG(log() << "Loaded bytecode file:" << std::endl);
+    LOG(log() << "  String table size: " << bc.get_stringtab_size() << " bytes"
+              << std::endl);
+    LOG(log() << "  Global area size: " << bc.get_global_area_size() << " words"
+              << std::endl);
+    LOG(log() << "  Strings loaded: " << bc.get_strings().size() << std::endl);
     for (const auto &entry : bc.get_strings()) {
       auto &index = entry.first;
       auto &string = entry.second;
-      log() << "    " << STR_HEX(index, 8) << ": "
-            << (string.empty() ? "<empty>" : string) << std::endl;
+      LOG(log() << "    " << STR_HEX(index, 8) << ": "
+                << (string.empty() ? "<empty>" : string) << std::endl);
     }
-    log() << "  Public symbols: " << bc.get_public_symbols_number()
-          << std::endl;
+    LOG(log() << "  Public symbols: " << bc.get_public_symbols_number()
+              << std::endl);
     for (const auto &symbol : bc.get_public_symbols()) {
       auto &name = symbol.first;
       auto offset = symbol.second;
-      log() << "    " << STR_HEX(offset, 8) << ": " << name << std::endl;
+      LOG(log() << "    " << STR_HEX(offset, 8) << ": " << name << std::endl);
     }
-    log() << "  Bytecode size: " << bc.get_bytecode_size() << " bytes"
-          << std::endl;
+    LOG(log() << "  Bytecode size: " << bc.get_bytecode_size() << " bytes"
+              << std::endl);
 
-    log() << "Interpreting bytecode:" << std::endl;
+    LOG(log() << "Interpreting bytecode:" << std::endl);
     interpreter.interpret();
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;

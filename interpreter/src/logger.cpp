@@ -2,7 +2,6 @@
 
 // Static variables
 static std::ofstream log_file;
-static NullStream null_stream;
 
 void init_logger(const std::string &filename) {
 #ifdef ENABLE_LOG
@@ -15,7 +14,6 @@ void init_logger(const std::string &filename) {
 #endif
 }
 
-// TODO: wrap calls to log() in macros, so it is properly cut-out when
 std::ostream &log() {
 #ifdef ENABLE_LOG
   if (log_file.is_open()) {
@@ -24,6 +22,6 @@ std::ostream &log() {
     return std::cout;
   }
 #else
-  return null_stream;
+  return std::cout;
 #endif
 }
