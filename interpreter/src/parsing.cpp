@@ -134,40 +134,6 @@ size_t BytecodeFile::get_bytecode_size() const { return bytecode_size; }
 const std::string *BytecodeFile::get_string(uint32_t index) const {
   auto it = strings.find(index);
   return (it != strings.end()) ? &it->second : nullptr;
-  // if (it != strings.end()) {
-  //   return &it->second;
-  // }
-
-  // // If not found, try direct byte-offset access (like byterun.c does)
-  // // This handles cases where the bytecode references a string offset we
-  // didn't
-  // // parse (e.g., due to empty strings or padding in the string table)
-  // if (index < string_table_buffer.size()) {
-  //   const char *str_ptr = string_table_buffer.data() + index;
-  //   const char *str_end =
-  //       string_table_buffer.data() + string_table_buffer.size();
-
-  //   // Check if there's a valid null-terminated string at this offset
-  //   if (str_ptr < str_end && *str_ptr != '\0') {
-  //     size_t len = std::strlen(str_ptr);
-  //     if (str_ptr + len < str_end) {
-  //       // Found a valid string - cache it in the map for future lookups
-  //       // (we need to modify the map, so we need a mutable reference or use
-  //       a
-  //       // different approach) For now, we'll create a temporary string and
-  //       // return it, but this won't work with const Let's use a mutable
-  //       static
-  //       // cache or thread_local, or better: make strings mutable Actually,
-  //       the
-  //       // simplest fix: ensure we parse ALL strings, including empty ones
-  //       But
-  //       // for now, let's just return nullptr and fix the parsing
-  //       return nullptr;
-  //     }
-  //   }
-  // }
-
-  // return nullptr;
 }
 
 // Get code offset for public symbol
