@@ -5,6 +5,13 @@
 [1]:  https://github.com/PLTools/Lama/Lama/workflows/Build/badge.svg?branch=1.30
 [2]:  https://github.com/PLTools/Lama/Lama/actions
 
+# C++ Interpeter
+
+> Repository is modified in order to implement HW2 of "Virtual Machines" course in HSE 2025'.
+
+This is a modified version of original JetBrains Lama repository: it contains a C++ interpreter for Lama bytecode. You can find it and its description in [`/interpreter`](./interpreter/) folder.
+
+
 # Lama
 
 ![lama](lama.svg) is a programming language (initualy developed by JetBrains Research) for educational purposes as an exemplary language to introduce the domain of programming languages, compilers, and tools.
