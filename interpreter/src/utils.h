@@ -17,15 +17,11 @@ extern "C" {
 void *Lstring(aint *args);
 }
 
-#define HEX_FMT(val, width)                                                    \
-  "0x" << std::hex << std::setw(width) << std::setfill('0') << (val)
-
-#define STR_HEX(val, width)                                                    \
-  ([&] {                                                                       \
-    std::ostringstream oss;                                                    \
-    oss << HEX_FMT((val), width);                                              \
-    return std::string(oss.str());                                             \
-  })()
+inline std::string STR_HEX(uint64_t val, int width) {
+  std::ostringstream oss;
+  oss << "0x" << std::hex << std::setw(width) << std::setfill('0') << (val);
+  return oss.str();
+}
 
 // Note: causes problems with GC, use with caustion disable when facing problems
 #define LAMA_TO_STR(value) lama_value_to_string(reinterpret_cast<void *>(value))
