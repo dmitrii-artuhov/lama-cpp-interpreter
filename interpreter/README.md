@@ -120,4 +120,4 @@ Summary
 =========================================
 ```
 
-You can run the script locally to see per-test results. Note, that I have not tries running tests from the `../regression_long`, since they take too much time to execute.
+You can run the script locally to see per-test results. Note, that I have not tried running benchmarking on tests from the `../regression_long`, since they take too much time to execute.
