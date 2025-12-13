@@ -87,3 +87,32 @@ By default it writes all produced artifacts to the `test_results` folder, which 
       Passed: 1000
       Failed: 0
     ```
+
+# Benchmark
+
+To run benchmarks use `benchmark.sh` script. It has the same arguments as the `run_tests.sh` script (except for `--silent`):
+
+```bash
+./benchmark.sh <test_folder> [test_name]
+```
+
+It also can run either a single test or all tests from a folder.
+
+Below is the summary for all tests from `../regression` folder with release version of c++ interpreter (`make release`):
+
+```bash
+=========================================
+Summary
+=========================================
+  Total tests:  79
+  Passed:       74
+  Skipped:      3 # failed to generate bytecode
+  Failed:       2 # c++ intepeter failed, see the "Results" section for details
+
+  Total Lama time:  16344.68ms
+  Total C++ time:   5382.94ms
+  Overall speedup:  3.04x
+=========================================
+```
+
+You can run the script locally to see per-test results. Note, that I have not tries running tests from the `../regression_long`, since they take too much time to execute.
