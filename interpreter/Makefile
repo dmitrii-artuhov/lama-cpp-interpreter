@@ -5,7 +5,7 @@ UNAME_S := $(shell uname -s)
 
 # Compiler settings
 ifeq ($(UNAME_S),Linux)
-    CXX = g++
+    CXX = clang++
 else ifeq ($(UNAME_S),Darwin)
     CXX = clang++
     ARCH = -arch x86_64
