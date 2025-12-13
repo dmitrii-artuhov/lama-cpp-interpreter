@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Test runner for Lama interpreter
-# Usage: ./run_tests.sh <test_folder> [test_name]
+# Usage: ./run_tests.sh [--silent] <test_folder> [test_name]
+#   --silent: don't create folders or save output files to disk
 #   test_folder: folder containing .lama/.input files
 #   test_name: optional, run only this specific test (without .lama extension)
 
@@ -18,10 +19,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAMAC="${LAMAC:-lamac}"
 INTERPRETER="${INTERPRETER:-${SCRIPT_DIR}/build/interpreter}"
 TEST_RESULTS_DIR="${SCRIPT_DIR}/test_results"
+SILENT_MODE=false
+
+# Parse flags
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --silent)
+            SILENT_MODE=true
+            shift
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 # Check arguments
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <test_folder> [test_name]"
+    echo "Usage: $0 [--silent] <test_folder> [test_name]"
+    echo "  --silent: don't create folders or save output files to disk"
     echo "  test_folder: folder containing .lama/.input files"
     echo "  test_name: optional, run only this specific test (without .lama extension)"
     exit 1
@@ -49,18 +69,39 @@ if [ ! -f "$INTERPRETER" ]; then
     exit 1
 fi
 
-# Create test results directory
-mkdir -p "$TEST_RESULTS_DIR"
+# Create test results directory (unless silent mode)
+if [ "$SILENT_MODE" = false ]; then
+    mkdir -p "$TEST_RESULTS_DIR"
+fi
 
 # Function to run a single test
 run_test() {
     local test_base="$1"
     local lama_file="${test_base}.lama"
     local input_file="${test_base}.input"
-    local bc_file="${TEST_RESULTS_DIR}/$(basename "${test_base}").bc"
-    local ref_output="${TEST_RESULTS_DIR}/$(basename "${test_base}").ref.out"
-    local cpp_output="${TEST_RESULTS_DIR}/$(basename "${test_base}").cpp.out"
-    local cpp_log="${TEST_RESULTS_DIR}/$(basename "${test_base}").cpp.log"
+    local use_temp_files=false
+    local bc_file ref_output cpp_output cpp_log
+    
+    # Set up output files (temp files in silent mode, persistent otherwise)
+    if [ "$SILENT_MODE" = true ]; then
+        use_temp_files=true
+        bc_file="$(mktemp)"
+        ref_output="$(mktemp)"
+        cpp_output="$(mktemp)"
+        cpp_log="/dev/null"
+    else
+        bc_file="${TEST_RESULTS_DIR}/$(basename "${test_base}").bc"
+        ref_output="${TEST_RESULTS_DIR}/$(basename "${test_base}").ref.out"
+        cpp_output="${TEST_RESULTS_DIR}/$(basename "${test_base}").cpp.out"
+        cpp_log="${TEST_RESULTS_DIR}/$(basename "${test_base}").cpp.log"
+    fi
+    
+    # Cleanup function for temp files
+    cleanup_temp_files() {
+        if [ "$use_temp_files" = true ]; then
+            rm -f "$bc_file" "$ref_output" "$cpp_output" 2>/dev/null || true
+        fi
+    }
     
     echo -n "Testing $(basename "$test_base")... "
     
@@ -81,10 +122,11 @@ run_test() {
         cd "$old_pwd"
         echo -e "${RED}FAILED${NC}"
         echo "  Error: Failed to generate bytecode file" >&2
+        cleanup_temp_files
         return 1
     fi
     
-    # Move generated .bc file to test_results
+    # Move generated .bc file to destination
     if [ -f "$generated_bc" ]; then
         mv "$generated_bc" "$bc_file"
         cd "$old_pwd"
@@ -92,6 +134,7 @@ run_test() {
         cd "$old_pwd"
         echo -e "${RED}FAILED${NC}"
         echo "  Error: Bytecode file not generated: $generated_bc" >&2
+        cleanup_temp_files
         return 1
     fi
     
@@ -100,6 +143,7 @@ run_test() {
         if ! "$LAMAC" -i "$lama_file" < "$input_file" > "$ref_output" 2>&1; then
             echo -e "${RED}FAILED${NC}"
             echo "  Error: Reference interpreter failed" >&2
+            cleanup_temp_files
             return 1
         fi
     else
@@ -107,6 +151,7 @@ run_test() {
         if ! "$LAMAC" -i "$lama_file" > "$ref_output" 2>&1; then
             echo -e "${RED}FAILED${NC}"
             echo "  Error: Reference interpreter failed" >&2
+            cleanup_temp_files
             return 1
         fi
     fi
@@ -116,6 +161,7 @@ run_test() {
         if ! "$INTERPRETER" "$bc_file" "$cpp_log" < "$input_file" > "$cpp_output" 2>&1; then
             echo -e "${RED}FAILED${NC}"
             echo "  Error: C++ interpreter failed (exit code: $?)" >&2
+            cleanup_temp_files
             return 1
         fi
     else
@@ -123,6 +169,7 @@ run_test() {
         if ! "$INTERPRETER" "$bc_file" "$cpp_log" > "$cpp_output" 2>&1; then
             echo -e "${RED}FAILED${NC}"
             echo "  Error: C++ interpreter failed (exit code: $?)" >&2
+            cleanup_temp_files
             return 1
         fi
     fi
@@ -131,14 +178,18 @@ run_test() {
     if ! diff -q "$ref_output" "$cpp_output" > /dev/null 2>&1; then
         echo -e "${RED}FAILED${NC}"
         echo "  Error: Output mismatch" >&2
-        echo "  Reference output saved to: $ref_output" >&2
-        echo "  C++ output saved to: $cpp_output" >&2
+        if [ "$SILENT_MODE" = false ]; then
+            echo "  Reference output saved to: $ref_output" >&2
+            echo "  C++ output saved to: $cpp_output" >&2
+        fi
         echo "  Diff:" >&2
         diff "$ref_output" "$cpp_output" >&2 || true
+        cleanup_temp_files
         return 1
     fi
     
     echo -e "${GREEN}PASSED${NC}"
+    cleanup_temp_files
     return 0
 }
 
