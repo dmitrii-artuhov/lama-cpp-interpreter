@@ -26,14 +26,25 @@ TARGET = $(BUILD_DIR)/interpreter
 # Runtime library
 RUNTIME_LIB = $(RUNTIME_DIR)/runtime.a
 
-# Compiler flags
-SANITIZER_FLAGS = -fsanitize=address -fsanitize=undefined
-CXXFLAGS = -g -O0 -fno-omit-frame-pointer -fstack-protector-all $(ARCH) -std=c++17 -Wall -Wextra -DENABLE_LOG $(SANITIZER_FLAGS)
+COMMON_CXXFLAGS = $(ARCH) -std=c++17 -Wall -Wextra
 CPPFLAGS = -I$(RUNTIME_DIR) -I$(SRC_DIR)
 
-# Default target
+SANITIZER_FLAGS = -fsanitize=address -fsanitize=undefined
+DEBUG_CXXFLAGS = -g -O0 -fno-omit-frame-pointer -fstack-protector-all $(SANITIZER_FLAGS) -DENABLE_LOG
+RELEASE_CXXFLAGS = -O3
+
+# Default to debug build
+CXXFLAGS = $(COMMON_CXXFLAGS) $(DEBUG_CXXFLAGS)
+
+# Default target (debug build)
 .PHONY: all
 all: $(TARGET)
+
+# Release target (does a clean build to ensure all files use release flags)
+.PHONY: release
+release: CXXFLAGS = $(COMMON_CXXFLAGS) $(RELEASE_CXXFLAGS)
+release: clean $(TARGET)
+	@echo "Release build complete: $(TARGET)"
 
 # Build the interpreter executable
 $(TARGET): $(OBJECTS) $(RUNTIME_LIB) | $(BUILD_DIR)
