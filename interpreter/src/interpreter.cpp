@@ -262,6 +262,25 @@ public:
         for (int i = 0; i < locals; ++i) {
           push_frame(reinterpret_cast<void *>(BOX(0)));
         }
+
+        // Print the arguments currently on the frame stack after pushing locals
+        // (in BEGIN/BEGINC)
+        PRINT_STACKS({
+          int32_t arg_count = frames.back().args;
+          if (arg_count > 0) {
+            std::ostringstream ss;
+            ss << "\tFRAME_ARGS: size=" << arg_count << ": [";
+            void **frame_args_ptr = fp - frames.back().locals - arg_count;
+            for (int i = 0; i < arg_count; ++i) {
+              if (i != 0)
+                ss << ", ";
+              ss << UNBOX(frame_args_ptr[i]);
+            }
+            ss << "]";
+            log() << ss.str() << std::endl;
+          }
+        });
+
         break;
       }
       case CALL: {
@@ -300,6 +319,10 @@ public:
         // Pop closure from stack
         void *closure_ptr = pop();
 
+        PRINT_STACKS(
+            log() << "CALLC: args=" << args_count << " [";
+            for (void *arg : args) { log() << UNBOX(arg) << ", "; } log()
+            << "] closure=" << UNBOX(closure_ptr) << std::endl;);
         // Extract function offset and closure data from closure object
         // Closure structure: [function_offset, captured_value1, ...]
         data *closure_data = TO_DATA(closure_ptr);
@@ -678,6 +701,58 @@ public:
                                  STR_HEX(static_cast<unsigned>(opcode), 2));
       }
       }
+      PRINT_STACKS(
+          size_t operand_stack_size = static_cast<size_t>(sp - operands);
+          log() << "\tOPERANDS: size=" << operand_stack_size << ": [";
+          for (size_t i = 0; i < operand_stack_size; ++i) {
+            log() << UNBOX(operands[i]);
+            if (i < operand_stack_size - 1) {
+              log() << ", ";
+            }
+          } log()
+          << "]" << std::endl;
+
+          // Print the current frame stack contents for the current frame (ret
+          // address, args, locals)
+          if (!frames.empty()) {
+            const auto &current_frame = frames.back();
+            int32_t num_args = current_frame.args;
+            int32_t num_locals = current_frame.locals;
+            // Frame structure: [ret, captured (if closure), args..., locals...]
+            void **frame_start = fp - (num_args + num_locals + 1);
+            log() << "\tFRAME_STACK: ";
+            log() << "ret=[";
+            if ((num_args + num_locals + 1) > 0) {
+              log() << UNBOX(frame_start[0]);
+            }
+            log() << "]";
+
+            void *closure_ptr =
+                (frames.back().closure ? get_closure_ptr() : nullptr);
+            if (closure_ptr != nullptr) {
+              // If it is a closure, the closure pointer is in
+              // current_frame.closure
+              log() << " closure=[";
+              log() << UNBOX(closure_ptr);
+              log() << "]";
+            }
+
+            log() << " args=[";
+            for (int i = 0; i < num_args; ++i) {
+              if (i != 0)
+                log() << ", ";
+              log() << UNBOX(frame_start[1 + i]);
+            }
+            log() << "]";
+
+            log() << " locals=[";
+            for (int i = 0; i < num_locals; ++i) {
+              if (i != 0)
+                log() << ", ";
+              log() << UNBOX(frame_start[1 + num_args + i]);
+            }
+            log() << "]" << std::endl;
+          });
     } while (1);
   }
 

@@ -18,3 +18,14 @@ std::ostream &log();
   do {                                                                         \
   } while (0)
 #endif
+
+#if defined(ENABLE_LOG) && defined(ENABLE_PRINT_STACKS)
+#define PRINT_STACKS(stmt)                                                     \
+  do {                                                                         \
+    stmt;                                                                      \
+  } while (0)
+#else
+#define PRINT_STACKS(stmt)                                                     \
+  do {                                                                         \
+  } while (0)
+#endif

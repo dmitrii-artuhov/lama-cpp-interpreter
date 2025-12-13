@@ -30,7 +30,7 @@ COMMON_CXXFLAGS = $(ARCH) -std=c++17 -Wall -Wextra
 CPPFLAGS = -I$(RUNTIME_DIR) -I$(SRC_DIR)
 
 SANITIZER_FLAGS = -fsanitize=address -fsanitize=undefined
-DEBUG_CXXFLAGS = -g -O0 -fno-omit-frame-pointer -fstack-protector-all $(SANITIZER_FLAGS) -DENABLE_LOG
+DEBUG_CXXFLAGS = -g -O0 -fno-omit-frame-pointer -fstack-protector-all $(SANITIZER_FLAGS) -DENABLE_LOG -DENABLE_PRINT_STACKS
 RELEASE_CXXFLAGS = -O3
 
 # Default to debug build
