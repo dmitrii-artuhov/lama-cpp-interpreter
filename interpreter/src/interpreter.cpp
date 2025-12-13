@@ -255,7 +255,7 @@ public:
         // Fully initialize the frame
         frames.back().locals = locals;
 
-        // Note: return address, closure values, and args are stored by the
+        // Note: return address, closure_ptr, and args are stored by the
         // CALL/CALLC opcodes
 
         // push locals (set to zeros)
@@ -285,8 +285,6 @@ public:
       }
       case CALL: {
         int32_t callee_offset = ip_int32();
-        // Note: args will be handled by the `BEGIN` opcode anyway, so we ignore
-        // them here
         int32_t args_count = ip_int32();
         LOG(log() << "CALL " << STR_HEX(callee_offset, 8) << " " << args_count
                   << std::endl);
@@ -697,8 +695,8 @@ public:
         break;
       }
       default: {
-        throw std::runtime_error("Invalid opcode: " +
-                                 STR_HEX(static_cast<unsigned>(opcode), 2));
+        fail_with("Invalid opcode: " +
+                  STR_HEX(static_cast<unsigned>(opcode), 2));
       }
       }
       PRINT_STACKS(
