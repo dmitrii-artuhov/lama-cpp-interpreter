@@ -2,6 +2,8 @@
 
 This is a homework #2 for Virtual Machines course at HSE 2025'.
 
+*All commands assume that you are in the `/interpreter` folder relative to the project root.*
+
 # Dependencies
 
 - `lamac`
@@ -14,7 +16,6 @@ _______
 
 # Build
 
-*All commands assume that you are in the `/interpreter` folder relative to the project root.*
 
 The build consists of building 2 targets: `runtime.a` and `intepreter`. Run the following commands:
 
@@ -61,6 +62,7 @@ By default it writes all produced artifacts to the `test_results` folder, which 
 
 1. Primary regression tests from `regression` folder:
     ```
+    ...
     Test Summary:
       Total:  79
       Passed: 74
@@ -74,6 +76,7 @@ By default it writes all produced artifacts to the `test_results` folder, which 
 
 2. Expressions tests from `regression_long/expressions` folder:
     ```
+    ...
     Test Summary:
       Total:  9956
       Passed: 9956
@@ -82,6 +85,7 @@ By default it writes all produced artifacts to the `test_results` folder, which 
 
 3. Deep expressions tests from `regression_long/deep-expressions` folder:
     ```
+    ...
     Test Summary:
       Total:  1000
       Passed: 1000
@@ -101,6 +105,7 @@ It also can run either a single test or all tests from a folder.
 Below is the summary for all tests from `../regression` folder with release version of c++ interpreter (`make release`):
 
 ```bash
+...
 =========================================
 Summary
 =========================================
