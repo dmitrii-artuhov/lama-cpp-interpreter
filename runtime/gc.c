@@ -587,7 +587,7 @@ void __gc_init (void) {
 }
 
 void __init (void) {
-  signal(SIGSEGV, handler);
+  //signal(SIGSEGV, handler);
   size_t space_size = INIT_HEAP_SIZE * sizeof(size_t);
 
   srandom(time(NULL));
