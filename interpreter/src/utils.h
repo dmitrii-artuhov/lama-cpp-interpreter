@@ -85,13 +85,13 @@ struct InstructionException : public std::runtime_error {
 };
 
 struct GlobalsIndexOutOfBoundsException : public InstructionException {
-  int32_t global_index;
+  uint32_t global_index;
   size_t globals_total;
 
-  GlobalsIndexOutOfBoundsException(int32_t global_index, size_t globals_total,
+  GlobalsIndexOutOfBoundsException(uint32_t global_index, size_t globals_total,
                                    size_t instruction_number)
       : InstructionException(
-            "Global index out of bounds: " + std::to_string(global_index) +
+            "Global index out of bounds: " + std::to_string(global_index + 1) +
                 " / " + std::to_string(globals_total),
             instruction_number),
         global_index(global_index), globals_total(globals_total) {}
