@@ -52,7 +52,7 @@ typedef uint32_t auint;  // adaptive unsigned int
 
 #define UNBOXED(x) (((aint)(x)) & 1)
 #define UNBOX(x) (((aint)(x)) >> 1)
-#define BOX(x) ((((aint)(x)) << 1) | 1)
+#define BOX(x) ((((aint)(x)) * 2) | 1)
 
 #define BYTES_TO_WORDS(bytes) (((bytes) - 1) / sizeof(size_t) + 1)
 #define WORDS_TO_BYTES(words) ((words) * sizeof(size_t))
