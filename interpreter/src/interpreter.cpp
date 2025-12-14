@@ -763,8 +763,6 @@ private:
     return value;
   }
 
-  const char *ip_string() { return bc.get_string(ip_int32()).data(); }
-
   void set_ip(const uint8_t *new_ip) {
     check_ip_valid(new_ip);
     ip = new_ip;
