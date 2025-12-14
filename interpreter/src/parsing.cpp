@@ -11,15 +11,15 @@ BytecodeFile::BytecodeFile(const std::string &file_path)
   }
 
   // Read header: 3 int32s
-  stringtab_size = read_int32(file);
-  global_area_size = read_int32(file);
-  public_symbols_number = read_int32(file);
+  stringtab_size = read_uint32(file);
+  global_area_size = read_uint32(file);
+  public_symbols_number = read_uint32(file);
 
   // Read public symbols table: N entries, each 2 int32s (name_index,
   // code_offset)
   for (uint32_t i = 0; i < public_symbols_number; ++i) {
-    uint32_t name_index = read_int32(file);
-    uint32_t code_offset = read_int32(file);
+    uint32_t name_index = read_uint32(file);
+    uint32_t code_offset = read_uint32(file);
     public_symbols[name_index] = code_offset;
   }
 
