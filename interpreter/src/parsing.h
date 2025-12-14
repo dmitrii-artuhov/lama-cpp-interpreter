@@ -14,13 +14,12 @@ private:
   uint32_t global_area_size;
   uint32_t public_symbols_number;
 
-  // String table: maps string index to string content
-  std::map<uint32_t, std::string> strings;
   // Raw string table buffer for direct byte-offset access
   std::vector<char> string_table_buffer;
 
-  // Public symbols: maps symbol name to code offset
-  std::map<std::string, uint32_t> public_symbols;
+  // Public symbols: maps symbol name index in string_table_buffer to code
+  // offset
+  std::map<uint32_t, uint32_t> public_symbols;
 
   // Bytecode data (raw pointer, deleted in destructor)
   uint8_t *bytecode;
@@ -40,13 +39,12 @@ public:
   uint32_t get_global_area_size() const { return global_area_size; }
   uint32_t get_public_symbols_number() const { return public_symbols_number; }
 
-  const std::map<uint32_t, std::string> &get_strings() const;
-  const std::map<std::string, uint32_t> &get_public_symbols() const;
+  const std::vector<char> &get_strings() const;
+  const std::map<uint32_t, uint32_t> &get_public_symbols() const;
 
   uint8_t *get_bytecode() const;
   size_t get_bytecode_size() const;
 
-  const std::string *get_string(uint32_t index) const;
-  uint32_t *get_public_symbol_offset(const std::string &name);
-  const uint32_t *get_public_symbol_offset(const std::string &name) const;
+  const std::string_view get_string(uint32_t index) const;
+  uint32_t get_public_symbol_offset(uint32_t public_symbol_index) const;
 };

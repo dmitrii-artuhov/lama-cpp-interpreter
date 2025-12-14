@@ -17,11 +17,10 @@ BytecodeFile::BytecodeFile(const std::string &file_path)
 
   // Read public symbols table: N entries, each 2 int32s (name_index,
   // code_offset)
-  std::vector<std::pair<uint32_t, uint32_t>> public_symbol_entries;
   for (uint32_t i = 0; i < public_symbols_number; ++i) {
     uint32_t name_index = read_int32(file);
     uint32_t code_offset = read_int32(file);
-    public_symbol_entries.push_back({name_index, code_offset});
+    public_symbols[name_index] = code_offset;
   }
 
   // Read string table: stringtab_size bytes
@@ -30,43 +29,6 @@ BytecodeFile::BytecodeFile(const std::string &file_path)
 
   if (file.gcount() != static_cast<std::streamsize>(stringtab_size)) {
     throw std::runtime_error("Failed to read complete string table");
-  }
-
-  // Parse strings from string table (null-terminated strings)
-  // Store ALL string start positions, including empty strings, to handle
-  // any byte offset that might be referenced in the bytecode
-  // This matches how byterun.c's get_string works: it returns &string_ptr[pos]
-  uint32_t string_index = 0;
-  const char *str_ptr = string_table_buffer.data();
-  const char *str_end = string_table_buffer.data() + stringtab_size;
-
-  while (str_ptr < str_end && string_index < stringtab_size) {
-    if (*str_ptr == '\0') {
-      strings[string_index] = std::string("");
-      str_ptr++;
-      string_index++;
-      continue;
-    }
-
-    size_t len = std::strlen(str_ptr);
-    if (str_ptr + len >= str_end) {
-      break;
-    }
-
-    strings[string_index] = std::string(str_ptr, len);
-    str_ptr += len + 1; // Skip null terminator
-    string_index += len + 1;
-  }
-
-  // Build public symbols map using parsed strings
-  for (const auto &entry : public_symbol_entries) {
-    uint32_t name_index = entry.first;
-    uint32_t code_offset = entry.second;
-
-    auto it = strings.find(name_index);
-    if (it != strings.end()) {
-      public_symbols[it->second] = code_offset;
-    }
   }
 
   // Read bytecode: remaining bytes
@@ -94,7 +56,6 @@ BytecodeFile::BytecodeFile(BytecodeFile &&other) noexcept
     : stringtab_size(other.stringtab_size),
       global_area_size(other.global_area_size),
       public_symbols_number(other.public_symbols_number),
-      strings(std::move(other.strings)),
       string_table_buffer(std::move(other.string_table_buffer)),
       public_symbols(std::move(other.public_symbols)), bytecode(other.bytecode),
       bytecode_size(other.bytecode_size) {
@@ -108,7 +69,6 @@ BytecodeFile &BytecodeFile::operator=(BytecodeFile &&other) noexcept {
     stringtab_size = other.stringtab_size;
     global_area_size = other.global_area_size;
     public_symbols_number = other.public_symbols_number;
-    strings = std::move(other.strings);
     public_symbols = std::move(other.public_symbols);
     string_table_buffer = std::move(other.string_table_buffer);
     bytecode = other.bytecode;
@@ -119,11 +79,10 @@ BytecodeFile &BytecodeFile::operator=(BytecodeFile &&other) noexcept {
   return *this;
 }
 
-const std::map<uint32_t, std::string> &BytecodeFile::get_strings() const {
-  return strings;
+const std::vector<char> &BytecodeFile::get_strings() const {
+  return string_table_buffer;
 }
-const std::map<std::string, uint32_t> &
-BytecodeFile::get_public_symbols() const {
+const std::map<uint32_t, uint32_t> &BytecodeFile::get_public_symbols() const {
   return public_symbols;
 }
 
@@ -131,19 +90,19 @@ uint8_t *BytecodeFile::get_bytecode() const { return bytecode; }
 size_t BytecodeFile::get_bytecode_size() const { return bytecode_size; }
 
 // Get string by index
-const std::string *BytecodeFile::get_string(uint32_t index) const {
-  auto it = strings.find(index);
-  return (it != strings.end()) ? &it->second : nullptr;
+const std::string_view BytecodeFile::get_string(uint32_t index) const {
+  if (index >= string_table_buffer.size()) {
+    throw std::runtime_error("Invalid string index: " + STR_HEX(index, 8));
+  }
+  return std::string_view(string_table_buffer.data() + index);
 }
 
 // Get code offset for public symbol
-uint32_t *BytecodeFile::get_public_symbol_offset(const std::string &name) {
-  auto it = public_symbols.find(name);
-  return (it != public_symbols.end()) ? &it->second : nullptr;
-}
-
-const uint32_t *
-BytecodeFile::get_public_symbol_offset(const std::string &name) const {
-  auto it = public_symbols.find(name);
-  return (it != public_symbols.end()) ? &it->second : nullptr;
+uint32_t
+BytecodeFile::get_public_symbol_offset(uint32_t public_symbol_index) const {
+  if (public_symbol_index >= public_symbols.size()) {
+    throw std::runtime_error("Invalid public symbol index: " +
+                             STR_HEX(public_symbol_index, 8));
+  }
+  return public_symbols.at(public_symbol_index);
 }

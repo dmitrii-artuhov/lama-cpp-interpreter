@@ -431,11 +431,7 @@ public:
       }
       case STRING: {
         int32_t id = ip_int32();
-        const std::string *string = bc.get_string(id);
-        if (string == nullptr) {
-          throw std::runtime_error("Invalid string id: " + std::to_string(id));
-        }
-        char *cstr = const_cast<char *>(string->c_str());
+        char *cstr = const_cast<char *>(bc.get_string(id).data());
         aint args = reinterpret_cast<aint>(cstr);
         void *bstr = Bstring(&args);
         push(bstr);
@@ -447,10 +443,8 @@ public:
         int32_t tag_string_id = ip_int32();
         int32_t n = ip_int32();
 
-        const std::string *tag_str = bc.get_string(tag_string_id);
-        check(tag_str != nullptr,
-              "Invalid tag string id: " + STR_HEX(tag_string_id, 8));
-        LOG(log() << "SEXP tag=" << *tag_str << " n=" << n << std::endl);
+        const std::string_view tag_str = bc.get_string(tag_string_id);
+        LOG(log() << "SEXP tag=" << tag_str << " n=" << n << std::endl);
 
         // Pop n field values from the operands stack (in reverse order to
         // maintain correct order)
@@ -460,7 +454,7 @@ public:
         }
 
         // Convert tag string to hash and add it as the last argument
-        args[n] = LtagHash(const_cast<char *>(tag_str->c_str()));
+        args[n] = LtagHash(const_cast<char *>(tag_str.data()));
 
         // Call Bsexp with the arguments (fields + tag hash)
         void *sexp = Bsexp(args.data(), BOX(n + 1));
@@ -580,18 +574,14 @@ public:
         int32_t tag_string_id = ip_int32();
         int32_t n = ip_int32();
 
-        const std::string *tag_str = bc.get_string(tag_string_id);
-        if (tag_str == nullptr) {
-          throw std::runtime_error("Invalid tag string id: " +
-                                   std::to_string(tag_string_id));
-        }
+        const std::string_view tag_str = bc.get_string(tag_string_id);
 
         void *value = pop();
-        aint tag_hash = LtagHash(const_cast<char *>(tag_str->c_str()));
+        aint tag_hash = LtagHash(const_cast<char *>(tag_str.data()));
         aint result = Btag(value, tag_hash, BOX(n));
         push(result);
 
-        LOG(log() << "TAG " << *tag_str << " " << n << " -> " << UNBOX(result)
+        LOG(log() << "TAG " << tag_str << " " << n << " -> " << UNBOX(result)
                   << std::endl);
         break;
       }
@@ -765,7 +755,7 @@ private:
     return value;
   }
 
-  const char *ip_string() { return bc.get_string(ip_int32())->c_str(); }
+  const char *ip_string() { return bc.get_string(ip_int32()).data(); }
 
   void set_ip(uint8_t *new_ip) {
     check_ip_valid(new_ip);
@@ -991,18 +981,19 @@ int main(int argc, char *argv[]) {
     LOG(log() << "  Global area size: " << bc.get_global_area_size() << " words"
               << std::endl);
     LOG(log() << "  Strings loaded: " << bc.get_strings().size() << std::endl);
-    for (const auto &entry : bc.get_strings()) {
-      auto &index = entry.first;
-      auto &string = entry.second;
-      LOG(log() << "    " << STR_HEX(index, 8) << ": "
+    for (uint32_t i = 0; i < bc.get_strings().size();) {
+      const std::string_view string = bc.get_string(i);
+      LOG(log() << "    " << STR_HEX(i, 8) << ": "
                 << (string.empty() ? "<empty>" : string) << std::endl);
+      i += string.size() + 1;
     }
     LOG(log() << "  Public symbols: " << bc.get_public_symbols_number()
               << std::endl);
     for (const auto &symbol : bc.get_public_symbols()) {
-      auto &name = symbol.first;
-      auto offset = symbol.second;
-      LOG(log() << "    " << STR_HEX(offset, 8) << ": " << name << std::endl);
+      uint32_t name_index = symbol.first;
+      uint32_t offset = symbol.second;
+      LOG(log() << "    " << STR_HEX(offset, 8) << ": "
+                << bc.get_string(name_index) << std::endl);
     }
     LOG(log() << "  Bytecode size: " << bc.get_bytecode_size() << " bytes"
               << std::endl);
