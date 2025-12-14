@@ -126,3 +126,11 @@ struct FramesMaxSizeException : public InstructionException {
       : InstructionException("Frames max size exceeded", instruction_number) {}
   using InstructionException::InstructionException;
 };
+
+struct ReadArgsMaxSizeException : public InstructionException {
+  ReadArgsMaxSizeException(int size, int max_size, size_t instruction_number)
+      : InstructionException(
+            "Read args max size exceeded: " + std::to_string(size) + " / " +
+                std::to_string(max_size),
+            instruction_number) {}
+};
