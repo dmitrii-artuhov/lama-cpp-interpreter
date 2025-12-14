@@ -747,9 +747,16 @@ public:
 
 private:
   // instruction pointer operations
-  uint8_t ip_byte() { return *ip++; }
+  uint8_t ip_byte() {
+    check_ip_valid(ip);
+    return *ip++;
+  }
 
   int32_t ip_int32() {
+    check_ip_valid(ip);
+    check_ip_valid(ip + sizeof(int32_t) -
+                   1); // `ip + sizeof(int32_t)` could be the end of the
+                       // bytecode, so we need -1
     int32_t value;
     std::memcpy(&value, ip, sizeof(int32_t));
     ip += sizeof(int32_t);
