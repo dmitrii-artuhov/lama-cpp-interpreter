@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include "parsing.h"
 #include "utils.h"
 
@@ -53,8 +55,11 @@ BytecodeFile::BytecodeFile(const std::string &file_path)
   }
 
   // Read bytecode: remaining bytes
-  file.seekg(0, std::ios::end);
-  size_t file_size = file.tellg();
+  std::error_code ec;
+  const auto file_size = std::filesystem::file_size(file_path, ec);
+  if (ec) {
+    throw std::runtime_error("Failed to get file size: " + ec.message());
+  }
   size_t header_size = 12 + (public_symbols_number * 8) + stringtab_size;
   bytecode_size = file_size - header_size;
 
