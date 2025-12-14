@@ -186,8 +186,8 @@ private:
   struct Frame {
     bool closure; // 0 - regular call, 1 - closure call the pointer to closure
                   // is bottom most element on frame stack for current frame
-    int args;
-    int locals;
+    uint32_t args;
+    uint32_t locals;
   };
   std::vector<Frame> frames;
   void **frame_stack = memory + MAX_OPERANDS;
@@ -247,13 +247,15 @@ public:
       case BEGIN:
       case BEGINC: {
         int32_t args = ip_int32();
+        check(args >= 0, "args must be non-negative");
         int32_t locals = ip_int32();
+        check(locals >= 0, "locals must be non-negative");
         LOG(log() << (opcode == BEGIN ? "BEGIN " : "BEGINC ") << args << " "
                   << locals << std::endl);
 
         check_frames_not_empty();
         // Fully initialize the frame
-        frames.back().locals = locals;
+        frames.back().locals = static_cast<uint32_t>(locals);
 
         // Note: return address, closure_ptr, and args are stored by the
         // CALL/CALLC opcodes
@@ -266,7 +268,7 @@ public:
         // Print the arguments currently on the frame stack after pushing locals
         // (in BEGIN/BEGINC)
         PRINT_STACKS({
-          int32_t arg_count = frames.back().args;
+          uint32_t arg_count = frames.back().args;
           if (arg_count > 0) {
             std::ostringstream ss;
             ss << "\tFRAME_ARGS: size=" << arg_count << ": [";
@@ -285,11 +287,13 @@ public:
       }
       case CALL: {
         int32_t callee_offset = ip_int32();
+        check(callee_offset >= 0, "callee_offset must be non-negative");
         int32_t args_count = ip_int32();
+        check(args_count >= 0, "args_count must be non-negative");
         LOG(log() << "CALL " << STR_HEX(callee_offset, 8) << " " << args_count
                   << std::endl);
         // create partially initialized frame
-        frames.push_back({false, args_count, 0});
+        frames.push_back({false, static_cast<uint32_t>(args_count), 0});
         // push return address
         push_frame(reinterpret_cast<void *>(
             const_cast<uint8_t *>(ip))); // the next instruction
@@ -308,6 +312,7 @@ public:
       case CALLC: {
         // Format: n (int32) - number of arguments
         int32_t args_count = ip_int32();
+        check(args_count >= 0, "args_count must be non-negative");
 
         // Pop n arguments from stack
         std::vector<void *> args(args_count);
@@ -335,6 +340,7 @@ public:
 
         // Get number of captured values (closure_contents[1..n])
         int32_t captured_count = LEN(closure_data->data_header) - 1;
+        check(captured_count >= 0, "captured_count must be non-negative");
 
         LOG(log() << "CALLC " << STR_HEX(function_offset, 8) << " args="
                   << args_count << " captured=" << captured_count << std::endl);
@@ -343,7 +349,7 @@ public:
         // Note: closure values are NOT copied to frame stack - they're accessed
         // directly from the closure object via closure_ptr
         // The captured_count is available from the closure object when needed
-        frames.push_back({true, args_count, 0});
+        frames.push_back({true, static_cast<uint32_t>(args_count), 0});
 
         // Push return address
         push_frame(reinterpret_cast<void *>(const_cast<uint8_t *>(ip)));
@@ -705,8 +711,8 @@ public:
           // address, args, locals)
           if (!frames.empty()) {
             const auto &current_frame = frames.back();
-            int32_t num_args = current_frame.args;
-            int32_t num_locals = current_frame.locals;
+            uint32_t num_args = current_frame.args;
+            uint32_t num_locals = current_frame.locals;
             // Frame structure: [ret, captured (if closure), args..., locals...]
             void **frame_start = fp - (num_args + num_locals + 1);
             log() << "\tFRAME_STACK: ";
@@ -949,12 +955,12 @@ private:
   }
 
   void check_argument_index(int index) {
-    check(index >= 0 && index < frames.back().args,
+    check(index >= 0 && static_cast<uint32_t>(index) < frames.back().args,
           "Invalid argument index: " + std::to_string(index));
   }
 
   void check_local_index(int index) {
-    check(index >= 0 && index < frames.back().locals,
+    check(index >= 0 && static_cast<uint32_t>(index) < frames.back().locals,
           "Invalid local index: " + std::to_string(index));
   }
 
