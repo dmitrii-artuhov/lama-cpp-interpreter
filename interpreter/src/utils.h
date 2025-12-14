@@ -60,6 +60,18 @@ inline std::string lama_value_to_string(void *value) {
   return std::string(c_str);
 }
 
+inline void check_unboxed(void *value, const std::string &message) {
+  if (!UNBOXED(value)) {
+    throw std::runtime_error(message + " must be unboxed");
+  }
+}
+
+inline void check_boxed(void *value, const std::string &message) {
+  if (UNBOXED(value)) {
+    throw std::runtime_error(message + " must be boxed");
+  }
+}
+
 // Base exception that stores an instruction number/context
 struct InstructionException : public std::runtime_error {
   size_t instruction_number;

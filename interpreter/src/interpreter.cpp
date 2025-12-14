@@ -17,20 +17,6 @@ extern "C" {
 aint Lread();
 void Lwrite(aint value);
 
-aint Ls__Infix_43(void *p, void *q);   // +
-aint Ls__Infix_45(void *p, void *q);   // -
-aint Ls__Infix_42(void *p, void *q);   // *
-aint Ls__Infix_47(void *p, void *q);   // /
-aint Ls__Infix_37(void *p, void *q);   // %
-aint Ls__Infix_60(void *p, void *q);   // <
-aint Ls__Infix_6061(void *p, void *q); // <=
-aint Ls__Infix_62(void *p, void *q);   // >
-aint Ls__Infix_6261(void *p, void *q); // >=
-aint Ls__Infix_6161(void *p, void *q); // ==
-aint Ls__Infix_3361(void *p, void *q); // !=
-aint Ls__Infix_3838(void *p, void *q); // &&
-aint Ls__Infix_3333(void *p, void *q); // !!
-
 void *Bstring(aint *args); // TODO: should this be Lstring?
 void *Barray(aint *args, aint bn);
 void *Bsexp(aint *args, aint bn);
@@ -59,6 +45,80 @@ extern size_t __gc_stack_top, __gc_stack_bottom;
 }
 // GC bounds for globals
 size_t __start_custom_data, __stop_custom_data;
+
+// binop functions
+aint binop_plus(void *p, void *q) { // +
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  return BOX(UNBOX(p) + UNBOX(q));
+}
+aint binop_minus(void *p, void *q) { // -
+  if (UNBOXED(p)) {
+    check_unboxed(q, "rhs");
+    return BOX(UNBOX(p) - UNBOX(q));
+  }
+  check_boxed(q, "rhs");
+  return BOX(reinterpret_cast<char *>(p) - reinterpret_cast<char *>(q));
+}
+aint binop_multiply(void *p, void *q) { // *
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  return BOX(UNBOX(p) * UNBOX(q));
+}
+aint binop_divide(void *p, void *q) { // /
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  if (UNBOX(q) == 0) {
+    throw std::runtime_error("rhs must be non-zero");
+  }
+  return BOX(UNBOX(p) / UNBOX(q));
+}
+aint binop_modulo(void *p, void *q) { // %
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  if (UNBOX(q) == 0) {
+    throw std::runtime_error("rhs must be non-zero");
+  }
+  return BOX(UNBOX(p) % UNBOX(q));
+}
+aint binop_lt(void *p, void *q) { // <
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  return BOX(UNBOX(p) < UNBOX(q));
+}
+aint binop_lte(void *p, void *q) { // <=
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  return BOX(UNBOX(p) <= UNBOX(q));
+}
+aint binop_gt(void *p, void *q) { // >
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  return BOX(UNBOX(p) > UNBOX(q));
+}
+aint binop_gte(void *p, void *q) { // >=
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  return BOX(UNBOX(p) >= UNBOX(q));
+}
+aint binop_eq(void *p, void *q) { // ==
+  return BOX(p == q);
+}
+aint binop_ne(void *p, void *q) { // !=
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  return BOX(UNBOX(p) != UNBOX(q));
+}
+aint binop_and(void *p, void *q) { // &&
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  return BOX(UNBOX(p) && UNBOX(q));
+}
+aint binop_or(void *p, void *q) { // !!
+  check_unboxed(p, "lhs");
+  check_unboxed(q, "rhs");
+  return BOX(UNBOX(p) || UNBOX(q));
+}
 
 #define MAX_OPERANDS 32768
 #define MAX_FRAME_STACK_SIZE 32768
@@ -145,19 +205,19 @@ const char *ops[] = {
 using binop_fun_ptr = aint (*)(void *, void *);
 
 binop_fun_ptr binop_functions[] = {
-    Ls__Infix_43,   // +
-    Ls__Infix_45,   // -
-    Ls__Infix_42,   // *
-    Ls__Infix_47,   // /
-    Ls__Infix_37,   // %
-    Ls__Infix_60,   // <
-    Ls__Infix_6061, // <=
-    Ls__Infix_62,   // >
-    Ls__Infix_6261, // >=
-    Ls__Infix_6161, // ==
-    Ls__Infix_3361, // !=
-    Ls__Infix_3838, // &&
-    Ls__Infix_3333  // !!
+    binop_plus,     // +
+    binop_minus,    // -
+    binop_multiply, // *
+    binop_divide,   // /
+    binop_modulo,   // %
+    binop_lt,       // <
+    binop_lte,      // <=
+    binop_gt,       // >
+    binop_gte,      // >=
+    binop_eq,       // ==
+    binop_ne,       // !=
+    binop_and,      // &&
+    binop_or,       // !!
 };
 
 const char *patts[] = {"=str", "#string", "#array", "#sexp",
@@ -421,13 +481,19 @@ public:
       case BINOP_NE:
       case BINOP_AND:
       case BINOP_OR: {
-        void *rhs = pop();
-        void *lhs = pop();
-        aint result = binop_functions[l - 1](lhs, rhs);
-        push(result);
-        LOG(log() << "BINOP " << UNBOX(reinterpret_cast<aint>(lhs)) << " "
-                  << ops[l - 1] << " " << UNBOX(reinterpret_cast<aint>(rhs))
-                  << " = " << UNBOX(result) << std::endl);
+        try {
+          void *rhs = pop();
+          void *lhs = pop();
+          aint result = binop_functions[l - 1](lhs, rhs);
+          push(result);
+          LOG(log() << "BINOP " << UNBOX(reinterpret_cast<aint>(lhs)) << " "
+                    << ops[l - 1] << " " << UNBOX(reinterpret_cast<aint>(rhs))
+                    << " = " << UNBOX(result) << std::endl);
+        } catch (const std::runtime_error &e) {
+          LOG(log() << "BINOP " << e.what() << std::endl);
+          fail_with("Error in operation '" + std::string(ops[l - 1]) +
+                    "': " + e.what());
+        }
         break;
       }
       case CONST: {
