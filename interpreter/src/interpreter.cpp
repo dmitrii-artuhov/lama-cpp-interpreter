@@ -917,7 +917,7 @@ private:
   }
 
   void check_stack_underflow() {
-    if (sp == nullptr || sp <= operands) {
+    if (sp <= operands) {
       throw StackUnderflowException(ip - bc.get_bytecode());
     }
   }
@@ -929,7 +929,7 @@ private:
   }
 
   void check_frames_underflow(int substract) {
-    if (fp == nullptr || fp - frame_stack < substract) {
+    if (fp - frame_stack < substract) {
       throw FramesUnderflowException(ip - bc.get_bytecode());
     }
   }
