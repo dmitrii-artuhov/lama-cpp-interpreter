@@ -39,7 +39,8 @@ BytecodeFile::BytecodeFile(const std::string &file_path)
 
   file.seekg(header_size, std::ios::beg);
   bytecode = new uint8_t[bytecode_size];
-  file.read(reinterpret_cast<char *>(bytecode), bytecode_size);
+  file.read(reinterpret_cast<char *>(const_cast<uint8_t *>(bytecode)),
+            bytecode_size);
 
   if (file.gcount() != static_cast<std::streamsize>(bytecode_size)) {
     delete[] bytecode;
@@ -86,7 +87,7 @@ const std::map<uint32_t, uint32_t> &BytecodeFile::get_public_symbols() const {
   return public_symbols;
 }
 
-uint8_t *BytecodeFile::get_bytecode() const { return bytecode; }
+const uint8_t *BytecodeFile::get_bytecode() const { return bytecode; }
 size_t BytecodeFile::get_bytecode_size() const { return bytecode_size; }
 
 // Get string by index

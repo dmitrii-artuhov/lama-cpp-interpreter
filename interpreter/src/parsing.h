@@ -22,7 +22,7 @@ private:
   std::map<uint32_t, uint32_t> public_symbols;
 
   // Bytecode data (raw pointer, deleted in destructor)
-  uint8_t *bytecode;
+  const uint8_t *bytecode;
   size_t bytecode_size;
 
 public:
@@ -42,7 +42,7 @@ public:
   const std::vector<char> &get_strings() const;
   const std::map<uint32_t, uint32_t> &get_public_symbols() const;
 
-  uint8_t *get_bytecode() const;
+  const uint8_t *get_bytecode() const;
   size_t get_bytecode_size() const;
 
   const std::string_view get_string(uint32_t index) const;

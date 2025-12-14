@@ -179,7 +179,7 @@ class Interpreter {
 private:
   BytecodeFile &bc;
   std::vector<void *> globals;
-  uint8_t *ip = nullptr;
+  const uint8_t *ip = nullptr;
   alignas(16) void *memory[MAX_OPERANDS + MAX_FRAME_STACK_SIZE] = {0};
   void **operands = memory;
   void **sp = nullptr;
@@ -210,7 +210,7 @@ public:
     __init();
 
     // Reset pointers
-    uint8_t *bytecode_start = bc.get_bytecode();
+    const uint8_t *bytecode_start = bc.get_bytecode();
     ip = bytecode_start;
     sp = operands;
     fp = frame_stack;
@@ -223,7 +223,7 @@ public:
     // as a return address for `main` just set bytecode_start, there will not be
     // a inifinite loop, because when `frames` becomes empty, then interpreter
     // will stop
-    push_frame(reinterpret_cast<void *>(bytecode_start));
+    push_frame(reinterpret_cast<void *>(const_cast<uint8_t *>(bytecode_start)));
 
     // `main` always has 2 arguments, so we push them on frame stack
     push_frame(reinterpret_cast<void *>(BOX(0)));
@@ -291,7 +291,8 @@ public:
         // create partially initialized frame
         frames.push_back({false, args_count, 0});
         // push return address
-        push_frame(reinterpret_cast<void *>(ip)); // the next instruction
+        push_frame(reinterpret_cast<void *>(
+            const_cast<uint8_t *>(ip))); // the next instruction
         // push args
         std::vector<void *> args(args_count);
         for (int i = args_count - 1; i >= 0; --i) {
@@ -345,7 +346,7 @@ public:
         frames.push_back({true, args_count, 0});
 
         // Push return address
-        push_frame(reinterpret_cast<void *>(ip));
+        push_frame(reinterpret_cast<void *>(const_cast<uint8_t *>(ip)));
 
         // Push closure pointer
         push_frame(closure_ptr);
@@ -757,7 +758,7 @@ private:
 
   const char *ip_string() { return bc.get_string(ip_int32()).data(); }
 
-  void set_ip(uint8_t *new_ip) {
+  void set_ip(const uint8_t *new_ip) {
     check_ip_valid(new_ip);
     ip = new_ip;
   }
@@ -898,8 +899,8 @@ private:
     }
   }
 
-  void check_ip_valid(uint8_t *ip) {
-    uint8_t *bytecode_start = bc.get_bytecode();
+  void check_ip_valid(const uint8_t *ip) {
+    const uint8_t *bytecode_start = bc.get_bytecode();
     check(ip >= bytecode_start && ip < bytecode_start + bc.get_bytecode_size(),
           "Invalid IP");
   }
