@@ -120,3 +120,9 @@ struct FramesOverflowException : public InstructionException {
       : InstructionException("Frames overflow", instruction_number) {}
   using InstructionException::InstructionException;
 };
+
+struct FramesMaxSizeException : public InstructionException {
+  FramesMaxSizeException(size_t instruction_number)
+      : InstructionException("Frames max size exceeded", instruction_number) {}
+  using InstructionException::InstructionException;
+};

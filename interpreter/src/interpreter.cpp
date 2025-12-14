@@ -122,6 +122,8 @@ aint binop_or(void *p, void *q) { // !!
 
 #define MAX_OPERANDS 32768
 #define MAX_FRAME_STACK_SIZE 32768
+// max call stack depth in Lama
+#define MAX_FRAMES 16384
 
 enum Opcode : uint8_t {
   BINOP_PLUS = 0x01,
@@ -260,6 +262,8 @@ public:
     __start_custom_data = reinterpret_cast<size_t>(globals.data());
     __stop_custom_data =
         reinterpret_cast<size_t>(globals.data() + globals.size());
+
+    frames.reserve(MAX_FRAMES);
   }
 
   void interpret() {
@@ -278,6 +282,7 @@ public:
 
     // Partially setup the `main` frame: it has 2 arguments, the locals will be
     // set by BEGIN opcode
+    check_frames_max_size();
     frames.push_back({false, 2, 0});
 
     // as a return address for `main` just set bytecode_start, there will not be
@@ -353,6 +358,7 @@ public:
         LOG(log() << "CALL " << STR_HEX(callee_offset, 8) << " " << args_count
                   << std::endl);
         // create partially initialized frame
+        check_frames_max_size();
         frames.push_back({false, static_cast<uint32_t>(args_count), 0});
         // push return address
         push_frame(reinterpret_cast<void *>(
@@ -409,8 +415,8 @@ public:
         // Note: closure values are NOT copied to frame stack - they're accessed
         // directly from the closure object via closure_ptr
         // The captured_count is available from the closure object when needed
+        check_frames_max_size();
         frames.push_back({true, static_cast<uint32_t>(args_count), 0});
-
         // Push return address
         push_frame(reinterpret_cast<void *>(const_cast<uint8_t *>(ip)));
 
@@ -991,6 +997,12 @@ private:
   void check_stack_underflow() {
     if (sp <= operands) {
       throw StackUnderflowException(ip - bc.get_bytecode());
+    }
+  }
+
+  void check_frames_max_size() {
+    if (frames.size() >= MAX_FRAMES) {
+      throw FramesMaxSizeException(ip - bc.get_bytecode());
     }
   }
 
