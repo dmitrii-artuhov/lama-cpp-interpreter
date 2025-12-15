@@ -46,6 +46,18 @@ extern size_t __gc_stack_top, __gc_stack_bottom;
 // GC bounds for globals
 size_t __start_custom_data, __stop_custom_data;
 
+#define MAX_OPERANDS 32768
+#define MAX_FRAME_STACK_SIZE 32768
+// max call stack depth in Lama
+#define MAX_FRAMES 16384
+// max number of entities when reading from bytecode file:
+// - CALL/CALLC args
+// - CALL_ARRAY args
+// - SEXP args
+// - CLOSURE captures and offset values
+#define MAX_ARGS 1000
+
+namespace {
 // binop functions
 aint binop_plus(void *p, void *q) { // +
   check_unboxed(p, "lhs");
@@ -119,17 +131,6 @@ aint binop_or(void *p, void *q) { // !!
   check_unboxed(q, "rhs");
   return BOX(UNBOX(p) || UNBOX(q));
 }
-
-#define MAX_OPERANDS 32768
-#define MAX_FRAME_STACK_SIZE 32768
-// max call stack depth in Lama
-#define MAX_FRAMES 16384
-// max number of entities when reading from bytecode file:
-// - CALL/CALLC args
-// - CALL_ARRAY args
-// - SEXP args
-// - CLOSURE captures and offset values
-#define MAX_ARGS 1000
 
 enum Opcode : uint8_t {
   BINOP_PLUS = 0x01,
@@ -242,6 +243,7 @@ single_arg_patt_fun_ptr patt_functions[] = {
     Bunboxed_patt,    // #val
     Bclosure_tag_patt // #fun
 };
+} // namespace
 
 class Interpreter {
 private:
