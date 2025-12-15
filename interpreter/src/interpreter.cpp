@@ -678,6 +678,12 @@ public:
         break;
       }
       case CLOSURE: {
+        enum DesignationType : uint8_t {
+          GLOBAL = 0,
+          LOCAL = 1,
+          ARGUMENT = 2,
+          CLOSURE = 3
+        };
         // Format: function_offset (int32), n (int32), then n designations
         int32_t function_offset = ip_int32();
         int32_t n = ip_int32();
@@ -697,22 +703,22 @@ public:
 
           check_frames_not_empty();
           switch (designation_type) {
-          case 0: // Global
+          case GLOBAL:
             check_global_index(index);
             value = globals[index];
             LOG(log() << "G(" << index << ")");
             break;
-          case 1: // Local
+          case LOCAL:
             check_local_index(index);
             value = read_local(index);
             LOG(log() << "L(" << index << ")");
             break;
-          case 2: // Argument
+          case ARGUMENT:
             check_argument_index(index);
             value = read_arg(index);
             LOG(log() << " A(" << index << ")");
             break;
-          case 3: { // Closure (from current closure)
+          case CLOSURE: {
             check_closure_value_index(index);
             value = read_closure_value(index);
             LOG(log() << " C(" << index << ")");
