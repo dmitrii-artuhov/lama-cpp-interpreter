@@ -515,7 +515,7 @@ public:
       }
       case STRING: {
         int32_t id = ip_int32();
-        char *cstr = const_cast<char *>(bc.get_string(id).data());
+        char *cstr = const_cast<char *>(get_string(id).data());
         aint args = reinterpret_cast<aint>(cstr);
         void *bstr = Bstring(&args);
         push(bstr);
@@ -527,7 +527,7 @@ public:
         int32_t tag_string_id = ip_int32();
         int32_t n = ip_int32();
 
-        const std::string_view tag_str = bc.get_string(tag_string_id);
+        const std::string_view tag_str = get_string(tag_string_id);
         LOG(log() << "SEXP tag=" << tag_str << " n=" << n << std::endl);
 
         // Pop n field values from the operands stack (in reverse order to
@@ -660,7 +660,7 @@ public:
         int32_t tag_string_id = ip_int32();
         int32_t n = ip_int32();
 
-        const std::string_view tag_str = bc.get_string(tag_string_id);
+        const std::string_view tag_str = get_string(tag_string_id);
 
         void *value = pop();
         aint tag_hash = LtagHash(const_cast<char *>(tag_str.data()));
@@ -986,6 +986,15 @@ private:
   }
 
   void write_value(aint value) { Lwrite(value); }
+
+  // helpers
+  std::string_view get_string(uint32_t index) {
+    try {
+      return bc.get_string(index);
+    } catch (const std::exception &e) {
+      throw InstructionException(e.what(), ip - bc.get_bytecode());
+    }
+  }
 
   // checks
   void fail_with(const std::string &msg) { check(false, msg); }
