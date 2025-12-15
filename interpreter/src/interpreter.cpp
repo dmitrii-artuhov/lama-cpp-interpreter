@@ -50,12 +50,6 @@ size_t __start_custom_data, __stop_custom_data;
 #define MAX_FRAME_STACK_SIZE 32768
 // max call stack depth in Lama
 #define MAX_FRAMES 16384
-// max number of entities when reading from bytecode file:
-// - CALL/CALLC args
-// - CALL_ARRAY args
-// - SEXP args
-// - CLOSURE captures and offset values
-#define MAX_ARGS 1000
 
 namespace {
 // binop functions
@@ -262,8 +256,6 @@ private:
   std::vector<Frame> frames;
   void **frame_stack = memory + MAX_OPERANDS;
   void **fp = nullptr;
-  std::vector<void *> read_args; // used for reading arguments of instructions
-                                 // CALL/CALLC, CALL_ARRAY, SEXP, CLOSURE
 
 public:
   explicit Interpreter(BytecodeFile &bc) : bc(bc) {
@@ -274,7 +266,6 @@ public:
         reinterpret_cast<size_t>(globals.data() + globals.size());
 
     frames.reserve(MAX_FRAMES);
-    read_args.reserve(MAX_ARGS);
   }
 
   void interpret() {
@@ -371,7 +362,7 @@ public:
         push_frame(reinterpret_cast<void *>(
             const_cast<uint8_t *>(ip))); // the next instruction
         // push args
-        push_frame_reversed(args_count);
+        push_frame(args_count);
         // go to callee
         set_ip(bytecode_start + callee_offset);
         break;
@@ -380,19 +371,28 @@ public:
         // Format: n (int32) - number of arguments
         uint32_t args_count = ip_uint32();
 
-        // Pop n arguments from stack
-        prepare_read_args(args_count);
-        for (int32_t i = args_count - 1; i >= 0; --i) {
-          read_args[i] = pop();
-        }
+        // Partially initialize the frame
+        // Note: closure values are NOT copied to frame stack - they're accessed
+        // directly from the closure object via closure_ptr
+        // The captured_count is available from the closure object when needed
+        check_frames_max_size();
+        frames.push_back({true, args_count, 0});
+        // Push return address
+        push_frame(reinterpret_cast<void *>(const_cast<uint8_t *>(ip)));
 
-        // Pop closure from stack
-        void *closure_ptr = pop();
+        // Take out [captured_value_n, captured_value_n-1, ..., function_offset]
+        // from the stack and push them in reverse order to the frame stack
+        // So we get [function_offset, captured_value1, captured_value2, ...]
+        push_frame(args_count + 1);
 
-        PRINT_STACKS(
-            log() << "CALLC: args=" << args_count << " [";
-            for (void *arg : read_args) { log() << UNBOX(arg) << ", "; } log()
-            << "] closure=" << UNBOX(closure_ptr) << std::endl;);
+        void *closure_ptr = get_closure_ptr();
+
+        // Printing
+        PRINT_STACKS(log() << "CALLC: args=" << args_count << " [";
+                     for (uint32_t i = 0; i < args_count;
+                          ++i) { log() << UNBOX(read_arg(i)) << ", "; } log()
+                     << "] closure=" << UNBOX(closure_ptr) << std::endl;);
+
         // Extract function offset and closure data from closure object
         // Closure structure: [function_offset, captured_value1, ...]
         data *closure_data = TO_DATA(closure_ptr);
@@ -411,23 +411,6 @@ public:
 
         LOG(log() << "CALLC " << STR_HEX(function_offset, 8) << " args="
                   << args_count << " captured=" << captured_count << std::endl);
-
-        // Partially initialize the frame
-        // Note: closure values are NOT copied to frame stack - they're accessed
-        // directly from the closure object via closure_ptr
-        // The captured_count is available from the closure object when needed
-        check_frames_max_size();
-        frames.push_back({true, args_count, 0});
-        // Push return address
-        push_frame(reinterpret_cast<void *>(const_cast<uint8_t *>(ip)));
-
-        // Push closure pointer
-        push_frame(closure_ptr);
-
-        // Push arguments to frame stack (they will be read by BEGIN)
-        for (uint32_t i = 0; i < args_count; ++i) {
-          push_frame(read_args[i]);
-        }
 
         // Go to callee
         set_ip(bytecode_start + function_offset);
@@ -464,14 +447,13 @@ public:
         int32_t n = ip_int32();
         LOG(log() << "CALL_ARRAY " << n << std::endl);
 
-        // Pop n values from the operands stack (in reverse order to maintain
-        // correct order)
-        prepare_read_args(n);
-        for (int32_t i = n - 1; i >= 0; --i) {
-          read_args[i] = pop();
-        }
-
-        void *arr = Barray(reinterpret_cast<aint *>(read_args.data()), BOX(n));
+        // Barray args lie in operands at [sp - n, ..., sp - 1]
+        // operands: .... args[0], args[1], ..., args[n-1], sp
+        //                 sp-n    sp-n-1          sp-1
+        check_stack_underflow(n);
+        void *arr = Barray(reinterpret_cast<aint *>(sp - n), BOX(n));
+        // pop top n operands
+        pop(n);
         push(arr);
         break;
       }
@@ -526,20 +508,16 @@ public:
         const std::string_view tag_str = get_string(tag_string_id);
         LOG(log() << "SEXP tag=" << tag_str << " n=" << n << std::endl);
 
-        // Pop n field values from the operands stack (in reverse order to
-        // maintain correct order)
-        prepare_read_args(n + 1); // +1 for the tag hash at the end
-        for (int32_t i = n - 1; i >= 0; --i) {
-          read_args[i] = pop();
-        }
-
         // Convert tag string to hash and add it as the last argument
-        read_args[n] = reinterpret_cast<void *>(
+        void *tag_hash = reinterpret_cast<void *>(
             LtagHash(const_cast<char *>(tag_str.data())));
-
+        // push tag on operands stack
+        push(tag_hash);
+        // Args for Bsexp lie in operands at [sp - n - 1, ..., sp - 1]
+        check_stack_underflow(n + 1);
         // Call Bsexp with the arguments (fields + tag hash)
-        void *sexp =
-            Bsexp(reinterpret_cast<aint *>(read_args.data()), BOX(n + 1));
+        void *sexp = Bsexp(reinterpret_cast<aint *>(sp - n - 1), BOX(n + 1));
+        pop(n + 1); // pop tag hash & n arguments
         push(sexp);
         break;
       }
@@ -692,8 +670,7 @@ public:
 
         // Prepare arguments for Bclosure: [function_offset, captured_value1,
         // ...]
-        prepare_read_args(n + 1);
-        read_args[0] = reinterpret_cast<void *>(function_offset);
+        push(reinterpret_cast<void *>(function_offset));
 
         // Read n designations in order and store them
         for (int32_t i = 1; i <= n; ++i) {
@@ -728,15 +705,16 @@ public:
             fail_with("Invalid designation type of CLOSURE: " +
                       std::to_string(designation_type));
           }
-          read_args[i] = value;
+          push(value);
         }
 
         // Call Bclosure to create the closure
         // Bclosure expects: args[0] = function_offset, args[1..n] = captured
         // values. The second argument is n (number of captured values), not n+1
         // Bclosure allocates n+1 elements internally
-        void *closure =
-            Bclosure(reinterpret_cast<aint *>(read_args.data()), BOX(n));
+        check_stack_underflow(n + 1);
+        void *closure = Bclosure(reinterpret_cast<aint *>(sp - n - 1), BOX(n));
+        pop(n + 1); // pop function offset & n captured values
         push(closure);
 
         LOG(log() << std::endl);
@@ -880,6 +858,12 @@ private:
     return value;
   }
 
+  void pop(uint32_t n) {
+    check_stack_underflow(n);
+    std::memset(sp - n, 0, n * sizeof(void *));
+    sp -= n;
+  }
+
   aint pop_aint() {
     void *value = pop();
     return reinterpret_cast<aint>(value);
@@ -957,11 +941,15 @@ private:
     *fp++ = value;
   }
 
-  void push_frame_reversed(uint32_t args) {
+  // push top 'args' elements from operands stack to frame stack
+  // and remove them from operands stack
+  // operands  : xxx a1 a2 .. an -> xxx
+  // frame args: xxx             -> xxx a1 a2 .. an
+  void push_frame(uint32_t args) {
     check_frames_overflow(args);
-    for (uint32_t i = 0; i < args; ++i) {
-      *(fp + args - i - 1) = pop();
-    }
+    check_stack_underflow(args);
+    std::memcpy(fp, sp - args, args * sizeof(void *));
+    pop(args);
     fp += args;
   }
 
@@ -1027,18 +1015,12 @@ private:
     }
   }
 
-  void check_stack_underflow() {
-    if (sp <= operands) {
+  void check_stack_underflow() { check_stack_underflow(1); }
+
+  void check_stack_underflow(uint32_t n) {
+    if (sp <= operands + n - 1) {
       throw StackUnderflowException(ip - bc.get_bytecode());
     }
-  }
-
-  void prepare_read_args(int size) {
-    if (size > MAX_ARGS) {
-      throw ReadArgsMaxSizeException(size, MAX_ARGS, ip - bc.get_bytecode());
-    }
-    read_args.clear();
-    read_args.resize(size);
   }
 
   void check_frames_max_size() {
