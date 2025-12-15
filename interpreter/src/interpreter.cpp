@@ -369,13 +369,7 @@ public:
         push_frame(reinterpret_cast<void *>(
             const_cast<uint8_t *>(ip))); // the next instruction
         // push args
-        prepare_read_args(args_count);
-        for (int i = args_count - 1; i >= 0; --i) {
-          read_args[i] = pop();
-        }
-        for (void *arg : read_args) {
-          push_frame(arg);
-        }
+        push_frame_reversed(args_count);
         // go to callee
         set_ip(bytecode_start + callee_offset);
         break;
@@ -955,6 +949,14 @@ private:
     *fp++ = value;
   }
 
+  void push_frame_reversed(uint32_t args) {
+    check_frames_overflow(args);
+    for (uint32_t i = 0; i < args; ++i) {
+      *(fp + args - i - 1) = pop();
+    }
+    fp += args;
+  }
+
   void pop_frame() {
     check_frames_not_empty();
     auto [has_closure, args, locals] = frames.back();
@@ -1039,6 +1041,12 @@ private:
 
   void check_frames_overflow() {
     if (fp >= frame_stack + MAX_FRAME_STACK_SIZE) {
+      throw FramesOverflowException(ip - bc.get_bytecode());
+    }
+  }
+
+  void check_frames_overflow(uint32_t add) {
+    if (fp + add - 1 >= frame_stack + MAX_FRAME_STACK_SIZE) {
       throw FramesOverflowException(ip - bc.get_bytecode());
     }
   }
