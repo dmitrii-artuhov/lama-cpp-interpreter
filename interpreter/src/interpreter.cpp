@@ -50,6 +50,8 @@ size_t __start_custom_data, __stop_custom_data;
 #define MAX_FRAME_STACK_SIZE 32768
 // max call stack depth in Lama
 #define MAX_FRAMES 16384
+// max number of globals
+#define MAX_GLOBALS 16384
 
 namespace {
 // binop functions
@@ -242,9 +244,9 @@ single_arg_patt_fun_ptr patt_functions[] = {
 class Interpreter {
 private:
   BytecodeFile &bc;
-  std::vector<void *> globals;
   const uint8_t *ip = nullptr;
-  alignas(16) void *memory[MAX_OPERANDS + MAX_FRAME_STACK_SIZE] = {0};
+  alignas(
+      16) void *memory[MAX_OPERANDS + MAX_FRAME_STACK_SIZE + MAX_GLOBALS] = {0};
   void **operands = memory;
   void **sp = nullptr;
   struct Frame {
@@ -255,15 +257,26 @@ private:
   };
   std::vector<Frame> frames;
   void **frame_stack = memory + MAX_OPERANDS;
+  void **globals = memory + MAX_OPERANDS + MAX_FRAME_STACK_SIZE;
   void **fp = nullptr;
+  size_t globals_size = 0;
 
 public:
   explicit Interpreter(BytecodeFile &bc) : bc(bc) {
+    // Initialize globals area
+    globals_size = bc.get_global_area_size();
+    if (globals_size > MAX_GLOBALS) {
+      throw std::runtime_error(
+          "Too many globals: " + std::to_string(globals_size) + " > " +
+          std::to_string(MAX_GLOBALS));
+    }
+    // Initialize globals to nullptr
+    for (size_t i = 0; i < globals_size; ++i) {
+      globals[i] = nullptr;
+    }
     // Set globals for GC once
-    globals.resize(bc.get_global_area_size(), nullptr);
-    __start_custom_data = reinterpret_cast<size_t>(globals.data());
-    __stop_custom_data =
-        reinterpret_cast<size_t>(globals.data() + globals.size());
+    __start_custom_data = reinterpret_cast<size_t>(globals);
+    __stop_custom_data = reinterpret_cast<size_t>(globals + globals_size);
 
     frames.reserve(MAX_FRAMES);
   }
@@ -271,8 +284,8 @@ public:
   void interpret() {
     // Reset GC
     __gc_stack_top = reinterpret_cast<size_t>(memory);
-    __gc_stack_bottom =
-        reinterpret_cast<size_t>(memory + MAX_OPERANDS + MAX_FRAME_STACK_SIZE);
+    __gc_stack_bottom = reinterpret_cast<size_t>(
+        memory + MAX_OPERANDS + MAX_FRAME_STACK_SIZE + MAX_GLOBALS);
     __init();
 
     // Reset pointers
@@ -1074,8 +1087,8 @@ private:
   }
 
   void check_global_index(uint32_t index) {
-    if (static_cast<size_t>(index) >= globals.size()) {
-      throw GlobalsIndexOutOfBoundsException(index, globals.size(),
+    if (static_cast<size_t>(index) >= globals_size) {
+      throw GlobalsIndexOutOfBoundsException(index, globals_size,
                                              ip - bc.get_bytecode());
     }
   }
