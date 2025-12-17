@@ -65,14 +65,11 @@ By default it writes all produced artifacts to the `test_results` folder, which 
     ...
     Test Summary:
       Total:  79
-      Passed: 74
-      Failed: 5
+      Passed: 76
+      Failed: 3
     ```
-    There are 2 failures of my intepreter and the rest are related to problems with lama compiler:
+    All failed tests are related to problems with lama compiler:
     - Failed to generate bytecode file: `test054`, `test110`, `test111`.
-    - **My interpreter failed**: `test081`, `test091`.
-      
-      Unfortunately, I wasn't able to find the error: the bytecode which my intepreter executes seems fine, operand and frame stacks also were in expected shape. I have invested a lot of time into locating the problem, but I don't know what it is. The failure is basically use-after-free, as I see it. The GC seems to delete closure object but bytecode still uses it.
 
 2. Expressions tests from `regression_long/expressions` folder:
     ```
