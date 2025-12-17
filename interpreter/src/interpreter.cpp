@@ -245,9 +245,12 @@ class Interpreter {
 private:
   BytecodeFile &bc;
   const uint8_t *ip = nullptr;
-  alignas(
-      16) void *memory[MAX_OPERANDS + MAX_FRAME_STACK_SIZE + MAX_GLOBALS] = {0};
-  void **operands = memory;
+  // GC tracks memory from memory[1] to memory[1 + MAX_OPERANDS +
+  // MAX_FRAME_STACK_SIZE + MAX_GLOBALS] for some reason, so we account for that
+  // by shifting our pointers by 1
+  alignas(16) void
+      *memory[1 + MAX_OPERANDS + MAX_FRAME_STACK_SIZE + MAX_GLOBALS] = {0};
+  void **operands = memory + 1;
   void **sp = nullptr;
   struct Frame {
     bool closure; // 0 - regular call, 1 - closure call the pointer to closure
@@ -256,8 +259,8 @@ private:
     uint32_t locals;
   };
   std::vector<Frame> frames;
-  void **frame_stack = memory + MAX_OPERANDS;
-  void **globals = memory + MAX_OPERANDS + MAX_FRAME_STACK_SIZE;
+  void **frame_stack = memory + MAX_OPERANDS + 1;
+  void **globals = memory + MAX_OPERANDS + MAX_FRAME_STACK_SIZE + 1;
   void **fp = nullptr;
   size_t globals_size = 0;
 
