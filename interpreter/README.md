@@ -99,22 +99,24 @@ To run benchmarks use `benchmark.sh` script. It has the same arguments as the `r
 
 It also can run either a single test or all tests from a folder.
 
-Below is the summary for all tests from `../regression` folder with release version of c++ interpreter (`make release`):
+Below is the summary for `Sort.lama` test from `../performance` folder with release version of c++ interpreter (`make release`):
 
 ```bash
-...
+Lama Interpreter Benchmark
+=========================================
+
+Sort: OK  lama: 552303.65ms  cpp: 457820.86ms  (1.21x)
+
 =========================================
 Summary
 =========================================
-  Total tests:  79
-  Passed:       74
-  Skipped:      3 # failed to generate bytecode
-  Failed:       2 # c++ intepeter failed, see the "Results" section for details
+  Total tests:  1
+  Passed:       1
+  Skipped:      0
+  Failed:       0
 
-  Total Lama time:  16344.68ms
-  Total C++ time:   5382.94ms
-  Overall speedup:  3.04x
+  Total Lama time:  552303.65ms
+  Total C++ time:   457820.86ms
+  Overall speedup:  1.21x
 =========================================
 ```
-
-You can run the script locally to see per-test results. Note, that I have not tried running benchmarking on tests from the `../regression_long`, since they take too much time to execute.
