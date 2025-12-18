@@ -47,9 +47,9 @@ extern size_t __gc_stack_top, __gc_stack_bottom;
 size_t __start_custom_data, __stop_custom_data;
 
 #define MAX_OPERANDS 32768
-#define MAX_FRAME_STACK_SIZE 32768
+#define MAX_FRAME_STACK_SIZE 524288 // 512 KB
 // max call stack depth in Lama
-#define MAX_FRAMES 16384
+#define MAX_FRAMES 65536
 // max number of globals
 #define MAX_GLOBALS 16384
 
