@@ -1,4 +1,5 @@
 #pragma once
+#include "common.h"
 #include <cstdint>
 #include <cstring>
 #include <exception>
@@ -17,36 +18,8 @@ extern "C" {
 void *Lstring(aint *args);
 }
 
-inline std::string STR_HEX(uint64_t val, int width) {
-  std::ostringstream oss;
-  oss << "0x" << std::hex << std::setw(width) << std::setfill('0') << (val);
-  return oss.str();
-}
-
 // Note: causes problems with GC, use with caustion disable when facing problems
 #define LAMA_TO_STR(value) lama_value_to_string(reinterpret_cast<void *>(value))
-
-// Helper to read uint32 from file (little-endian)
-inline uint32_t read_uint32(std::ifstream &file) {
-  uint32_t value;
-  file.read(reinterpret_cast<char *>(&value), sizeof(uint32_t));
-  if (file.eof() && file.gcount() != sizeof(uint32_t)) {
-    throw std::runtime_error("Failed to read 4 bytes from file: unexpected "
-                             "end of file: read only " +
-                             std::to_string(file.gcount()));
-  }
-  if (file.fail()) {
-    throw std::runtime_error(
-        "Failed to read 4 bytes from file: input failure (failbit set): " +
-        std::to_string(file.gcount()));
-  }
-  if (file.bad()) {
-    throw std::runtime_error("Failed to read 4 bytes from file: "
-                             "irrecoverable stream error (badbit set): " +
-                             std::string(std::strerror(errno)));
-  }
-  return value;
-}
 
 // Convert lama data pointer to string
 inline std::string lama_value_to_string(void *value) {

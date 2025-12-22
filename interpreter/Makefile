@@ -15,10 +15,15 @@ endif
 SRC_DIR = src
 BUILD_DIR = build
 RUNTIME_DIR = ../runtime
+COMMON_DIR = ../common
 
-# Source files (all .cpp files in src/)
-SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
-OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
+# Source files (all .cpp files in src/ and common/)
+SRC_SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
+COMMON_SOURCES = $(wildcard $(COMMON_DIR)/*.cpp)
+SOURCES = $(SRC_SOURCES) $(COMMON_SOURCES)
+SRC_OBJECTS = $(SRC_SOURCES:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
+COMMON_OBJECTS = $(COMMON_SOURCES:$(COMMON_DIR)/%.cpp=$(BUILD_DIR)/%.o)
+OBJECTS = $(SRC_OBJECTS) $(COMMON_OBJECTS)
 
 # Target executable
 TARGET = $(BUILD_DIR)/interpreter
@@ -27,7 +32,7 @@ TARGET = $(BUILD_DIR)/interpreter
 RUNTIME_LIB = $(RUNTIME_DIR)/runtime.a
 
 COMMON_CXXFLAGS = $(ARCH) -std=c++17 -Wall -Wextra
-CPPFLAGS = -I$(RUNTIME_DIR) -I$(SRC_DIR)
+CPPFLAGS = -I$(RUNTIME_DIR) -I$(SRC_DIR) -I$(COMMON_DIR)
 
 SANITIZER_FLAGS = -fsanitize=address -fsanitize=undefined
 DEBUG_CXXFLAGS = -g -O0 -fno-omit-frame-pointer -fstack-protector-all $(SANITIZER_FLAGS) -DENABLE_LOG -DENABLE_PRINT_STACKS
@@ -52,6 +57,9 @@ $(TARGET): $(OBJECTS) $(RUNTIME_LIB) | $(BUILD_DIR)
 
 # Compile .cpp files to .o files in build directory
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: $(COMMON_DIR)/%.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
 # Create build directory if it doesn't exist
