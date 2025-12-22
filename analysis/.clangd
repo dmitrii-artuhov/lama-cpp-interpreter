@@ -1,0 +1,11 @@
+CompileFlags:
+  Add:
+    # relative to the 'src' directory
+    - -I../../common
+    - -I.
+    - -std=c++17
+    - -g
+    - -fstack-protector-all
+    - -Wall
+    - -Wextra
+
