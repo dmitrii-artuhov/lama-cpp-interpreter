@@ -185,7 +185,7 @@ public:
     //   jump;
     //   3. instruction immediately following a conditional if jump (since
     //   control may fall through)
-    std::set<uint32_t> leaders;
+    std::vector<uint32_t> leaders;
     uint32_t bytecode_size = bc.get_bytecode_size();
     const uint8_t *bytecode_start = bc.get_bytecode();
     const uint8_t *ip = bytecode_start;
@@ -196,23 +196,29 @@ public:
 
       if (is_any_begin(opcode)) {
         // first instruction of method call
-        leaders.insert(ip - bytecode_start);
+        uint32_t leader_offset = ip - bytecode_start;
+        if (!contains(leaders, leader_offset)) {
+          leaders.push_back(leader_offset);
+        }
       } else if (is_any_jmp(opcode)) {
         uint32_t target_offset = read_uint32(ip + 1);
         // target of the jump
-        leaders.insert(target_offset);
+        if (!contains(leaders, target_offset)) {
+          leaders.push_back(target_offset);
+        }
 
         if (is_conditional_jmp(opcode)) {
           uint32_t next_offset = ip + length - bytecode_start;
-          if (next_offset < bytecode_size) {
+          if (next_offset < bytecode_size && !contains(leaders, next_offset)) {
             // fall-through instruction of the conditional jump
-            leaders.insert(next_offset);
+            leaders.push_back(next_offset);
           }
         }
       }
 
       ip += length;
     }
+    std::sort(leaders.begin(), leaders.end());
 
     std::vector<InstructionRange> basic_blocks;
     uint32_t bb_index = 0;

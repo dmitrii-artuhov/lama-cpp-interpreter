@@ -190,3 +190,7 @@ inline bool is_any_jmp(uint8_t opcode) {
 inline bool is_any_begin(uint8_t opcode) {
   return opcode == BEGIN || opcode == BEGINC;
 }
+
+template <class T> bool contains(const std::vector<T> &vec, const T &val) {
+  return std::find(vec.begin(), vec.end(), val) != vec.end();
+}
