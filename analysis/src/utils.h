@@ -168,7 +168,6 @@ inline void print_instruction(std::ostream &os, const uint8_t *start,
     for (uint32_t i = 0; i < n; i++) {
       uint8_t designation_type = *start++;
       os << " " << designation_type_to_string(designation_type);
-      start += 1;
       os << "(" << read_uint32(start) << ")";
       start += 4;
     }

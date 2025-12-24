@@ -66,3 +66,8 @@ $(BUILD_DIR):
 .PHONY: clean
 clean:
 	$(RM) -r $(BUILD_DIR)
+
+# Clean test results
+.PHONY: clean_test
+clean_test:
+	$(RM) -r test_results
