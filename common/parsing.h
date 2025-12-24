@@ -70,3 +70,9 @@ inline uint32_t read_uint32(std::ifstream &file) {
   }
   return value;
 }
+
+inline uint32_t read_uint32(const uint8_t *offset) {
+  uint32_t value;
+  std::memcpy(&value, offset, sizeof(uint32_t));
+  return value;
+}
