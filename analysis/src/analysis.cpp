@@ -197,12 +197,6 @@ private:
       curr_offset_index++;
     }
 
-    // print processed methods
-    LOG(log() << "Visited methods for basic blocks collection: " << std::endl);
-    for (uint32_t offset : call_offsets) {
-      LOG(log() << "  " << STR_HEX(offset, 8) << std::endl);
-    }
-
     return basic_blocks;
   }
 
@@ -263,26 +257,13 @@ private:
     uint32_t call_end_offset = ip - bytecode_start;
 
     std::sort(leaders.begin(), leaders.end());
-    for (uint32_t leader : leaders) {
-      LOG(log() << "  Leader: " << STR_HEX(leader, 8) << std::endl);
-    }
-    LOG(log() << "Call end offset: " << STR_HEX(call_end_offset, 8)
-              << std::endl);
-
     for (auto it = leaders.begin(); it != leaders.end(); ++it) {
       uint32_t start_offset = *it;
       auto next_it = std::next(it);
       uint32_t end_offset =
           (next_it != leaders.end()) ? *next_it : call_end_offset; // exclusive
-      if (end_offset <= start_offset) {
-        LOG(log() << "  Invalid basic block: " << STR_HEX(start_offset, 8)
-                  << " - " << STR_HEX(end_offset, 8) << std::endl);
-      }
       basic_blocks.push_back({start_offset, end_offset - start_offset});
     }
-
-    LOG(log() << "Basic blocks collected: " << basic_blocks.size()
-              << std::endl);
   }
 };
 
