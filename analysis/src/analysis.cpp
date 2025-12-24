@@ -145,7 +145,7 @@ public:
       // 4. print buckets
       std::cout << "Counts of " << i << " instructions:" << std::endl;
       for (const auto &count : counts) {
-        std::cout << "  " << count.second << "\t"
+        std::cout << "  " << count.second << "  "
                   << instruction_range_to_string(count.first, bc) << std::endl;
       }
       std::cout << std::endl;
