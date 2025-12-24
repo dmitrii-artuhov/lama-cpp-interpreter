@@ -51,18 +51,21 @@ public:
     std::cout << "Analyzing bytecode..." << std::endl;
 
     // collect basic blocks
-    std::vector<std::vector<InstructionRange>> basic_blocks =
-        get_basic_blocks();
+    std::vector<InstructionRange> basic_blocks = get_basic_blocks();
 
     // print basic blocks
     for (size_t bb_index = 0; bb_index < basic_blocks.size(); bb_index++) {
       const auto &block = basic_blocks[bb_index];
-      LOG(log() << "Basic block: " << bb_index << std::endl);
-      for (const auto &instruction : block) {
-        LOG(log() << "  " << STR_HEX(instruction.offset, 8) << ":\t");
-        LOG(print_instruction(log(), bc.get_bytecode() + instruction.offset,
-                              bc));
+      LOG(log() << "Basic block: " << bb_index << " {"
+                << STR_HEX(block.offset, 8) << ", " << block.length << "}"
+                << std::endl);
+
+      uint32_t offset = block.offset;
+      while (offset < block.offset + block.length) {
+        LOG(log() << "  " << STR_HEX(offset, 8) << ":\t");
+        LOG(print_instruction(log(), bc.get_bytecode() + offset, bc));
         LOG(log() << std::endl);
+        offset += instruction_length(bc.get_bytecode() + offset, bc);
       }
     }
 
@@ -72,16 +75,30 @@ public:
 
       for (const auto &block : basic_blocks) {
         // collect instruction ranges of length i
-        for (size_t j = 0; j < block.size() - i + 1; ++j) {
-          uint32_t offset = block[j].offset;
-          uint32_t length = 0;
-          // all instructions are followed one by another, so we can just sum up
-          // the lengths
-          for (int l = 0; l < i; ++l) {
-            length += block[j + l].length;
+        uint32_t offset = block.offset;
+        while (offset < block.offset + block.length) {
+          // collect i instructions starting from offset
+          uint32_t next_insn_offset = offset;
+          uint32_t combined_length = 0;
+          bool has_enough_insns = true;
+
+          for (int j = 0; j < i; ++j) {
+            if (next_insn_offset >= block.offset + block.length) {
+              has_enough_insns = false;
+              break;
+            }
+            uint32_t len =
+                instruction_length(bc.get_bytecode() + next_insn_offset, bc);
+            next_insn_offset += len;
+            combined_length += len;
           }
 
-          ranges.push_back({offset, length});
+          if (!has_enough_insns)
+            break;
+
+          ranges.push_back({offset, combined_length});
+          // move 1 instruction forward
+          offset += instruction_length(bc.get_bytecode() + offset, bc);
         }
       }
 
@@ -159,7 +176,7 @@ public:
     }
   }
 
-  std::vector<std::vector<InstructionRange>> get_basic_blocks() {
+  std::vector<InstructionRange> get_basic_blocks() {
     // Identify leaders (first instructions of basic blocks).
     //
     // An instruction is a leader if it is:
@@ -197,30 +214,15 @@ public:
       ip += length;
     }
 
-    std::vector<std::vector<InstructionRange>> basic_blocks;
+    std::vector<InstructionRange> basic_blocks;
     uint32_t bb_index = 0;
     for (auto it = leaders.begin(); it != leaders.end(); ++it, ++bb_index) {
-      std::vector<InstructionRange> block;
       uint32_t start_offset = *it;
       auto next_it = std::next(it);
       uint32_t end_offset =
           (next_it != leaders.end()) ? *next_it : bytecode_size; // exclusive
 
-      uint32_t offset = start_offset;
-      while (offset < end_offset) {
-        uint32_t length = instruction_length(bytecode_start + offset, bc);
-        block.push_back({offset, length});
-        offset += length;
-      }
-      if (offset != end_offset) {
-        throw std::runtime_error("Basic block " + std::to_string(bb_index) +
-                                 " is not terminated correctly, its end does "
-                                 "not match expected end " +
-                                 std::to_string(offset) + "/" +
-                                 std::to_string(end_offset));
-      }
-
-      basic_blocks.push_back(block);
+      basic_blocks.push_back({start_offset, end_offset - start_offset});
     }
 
     return basic_blocks;
