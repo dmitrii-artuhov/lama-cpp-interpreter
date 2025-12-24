@@ -48,7 +48,7 @@ public:
   explicit Analyser(BytecodeFile &bc) : bc(bc) {}
 
   void analyse(int k) {
-    LOG(log() << "Analyzing bytecode..." << std::endl);
+    std::cout << "Analyzing bytecode..." << std::endl;
 
     // collect basic blocks
     std::vector<std::vector<InstructionRange>> basic_blocks =
@@ -86,17 +86,17 @@ public:
       }
 
       /*
-        we have all ranges of length i for all basic blocks
-        1. sort them by lexicographical order of the instruction ranges
-        2. count the number of matching ones:
-          a. if 2 neighbouring sequences are the same, do +=1 to the current
-          counter
-          b. if neighbours do not match, save the prev bucket {
-          InstructionRange, count } and set count to 1. The 'InstructionRange'
-          can be taken any of the matched values, because as byte-sequences they
-          are equal
-        3. the resulting bucket vector of { InstructionRange, count } pairs,
-           sort by the count this is the answer for the current i
+      we have all ranges of length i for all basic blocks
+      1. sort them by lexicographical order of the instruction ranges
+      2. count the number of matching ones:
+        a. if 2 neighbouring sequences are the same, do +=1 to the current
+        counter
+        b. if neighbours do not match, save the prev bucket {
+        InstructionRange, count } and set count to 1. The 'InstructionRange'
+        can be taken any of the matched values, because as byte-sequences they
+        are equal
+      3. the resulting bucket vector of { InstructionRange, count } pairs,
+          sort by the count this is the answer for the current i
       */
 
       // 1. sort ranges by lexicographical order of the instruction ranges
@@ -143,11 +143,12 @@ public:
                 });
 
       // 4. print buckets
-      LOG(log() << "Counts of " << i << " instructions:" << std::endl);
+      std::cout << "Counts of " << i << " instructions:" << std::endl;
       for (const auto &count : counts) {
-        LOG(log() << "  " << count.second << "\t"
-                  << instruction_range_to_string(count.first, bc) << std::endl);
+        std::cout << "  " << count.second << "\t"
+                  << instruction_range_to_string(count.first, bc) << std::endl;
       }
+      std::cout << std::endl;
     }
   }
 
@@ -160,7 +161,6 @@ public:
     //   jump;
     //   3. instruction immediately following a conditional if jump (since
     //   control may fall through)
-
     std::set<uint32_t> leaders;
     uint32_t bytecode_size = bc.get_bytecode_size();
     const uint8_t *bytecode_start = bc.get_bytecode();
@@ -189,8 +189,6 @@ public:
 
       ip += length;
     }
-
-    // std::sort(leaders.begin(), leaders.end());
 
     std::vector<std::vector<InstructionRange>> basic_blocks;
     uint32_t bb_index = 0;
@@ -259,7 +257,6 @@ int main(int argc, char *argv[]) {
     LOG(log() << "  Bytecode size: " << bc.get_bytecode_size() << " bytes"
               << std::endl);
 
-    LOG(log() << "Analyzed bytecode:" << std::endl);
     analyser.analyse(2);
 
   } catch (const std::exception &e) {
