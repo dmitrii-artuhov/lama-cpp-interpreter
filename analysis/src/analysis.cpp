@@ -135,7 +135,8 @@ public:
       }
 
       // 2. count the number of matching ones
-      std::vector<std::pair<InstructionRange, int>> counts = {{ranges[0], 1}};
+      std::vector<std::pair<InstructionRange, uint32_t>> counts = {
+          {ranges[0], 1}};
       for (size_t j = 1; j < ranges.size(); ++j) {
         const InstructionRange &curr = ranges[j];
         const InstructionRange &prev = ranges[j - 1];
