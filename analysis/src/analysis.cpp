@@ -137,8 +137,15 @@ public:
 
       // 3. sort buckets by the count
       std::sort(counts.begin(), counts.end(),
-                [](const std::pair<InstructionRange, int> &a,
-                   const std::pair<InstructionRange, int> &b) {
+                [this](const std::pair<InstructionRange, int> &a,
+                       const std::pair<InstructionRange, int> &b) {
+                  if (a.second == b.second) {
+                    const uint8_t *bytecode_start = bc.get_bytecode();
+                    return std::memcmp(
+                               bytecode_start + a.first.offset,
+                               bytecode_start + b.first.offset,
+                               std::min(a.first.length, b.first.length)) < 0;
+                  }
                   return a.second > b.second;
                 });
 
