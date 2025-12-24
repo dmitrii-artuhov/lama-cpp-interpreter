@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <iostream>
+#include <set>
 
 #include "logger.h"
 #include "parsing.h"
@@ -58,8 +59,10 @@ public:
       const auto &block = basic_blocks[bb_index];
       LOG(log() << "Basic block: " << bb_index << std::endl);
       for (const auto &instruction : block) {
-        LOG(log() << "  " << instruction_range_to_string(instruction, bc)
-                  << std::endl);
+        LOG(log() << "  " << STR_HEX(instruction.offset, 8) << ":\t");
+        LOG(print_instruction(log(), bc.get_bytecode() + instruction.offset,
+                              bc));
+        LOG(log() << std::endl);
       }
     }
 
@@ -158,7 +161,7 @@ public:
     //   3. instruction immediately following a conditional if jump (since
     //   control may fall through)
 
-    std::vector<uint32_t> leaders;
+    std::set<uint32_t> leaders;
     uint32_t bytecode_size = bc.get_bytecode_size();
     const uint8_t *bytecode_start = bc.get_bytecode();
     const uint8_t *ip = bytecode_start;
@@ -169,17 +172,17 @@ public:
 
       if (is_any_begin(opcode)) {
         // first instruction of method call
-        leaders.push_back(ip - bytecode_start);
+        leaders.insert(ip - bytecode_start);
       } else if (is_any_jmp(opcode)) {
         uint32_t target_offset = read_uint32(ip + 1);
         // target of the jump
-        leaders.push_back(target_offset);
+        leaders.insert(target_offset);
 
         if (is_conditional_jmp(opcode)) {
           uint32_t next_offset = ip + length - bytecode_start;
           if (next_offset < bytecode_size) {
             // fall-through instruction of the conditional jump
-            leaders.push_back(next_offset);
+            leaders.insert(next_offset);
           }
         }
       }
@@ -187,15 +190,16 @@ public:
       ip += length;
     }
 
-    std::sort(leaders.begin(), leaders.end());
+    // std::sort(leaders.begin(), leaders.end());
 
     std::vector<std::vector<InstructionRange>> basic_blocks;
-    for (size_t i = 0; i < leaders.size(); ++i) {
+    uint32_t bb_index = 0;
+    for (auto it = leaders.begin(); it != leaders.end(); ++it, ++bb_index) {
       std::vector<InstructionRange> block;
-      uint32_t start_offset = leaders[i];
-      uint32_t end_offset = (i + 1 < leaders.size())
-                                ? leaders[i + 1]
-                                : bytecode_size; // exclusive
+      uint32_t start_offset = *it;
+      auto next_it = std::next(it);
+      uint32_t end_offset =
+          (next_it != leaders.end()) ? *next_it : bytecode_size; // exclusive
 
       uint32_t offset = start_offset;
       while (offset < end_offset) {
@@ -204,7 +208,7 @@ public:
         offset += length;
       }
       if (offset != end_offset) {
-        throw std::runtime_error("Basic block " + std::to_string(i) +
+        throw std::runtime_error("Basic block " + std::to_string(bb_index) +
                                  " is not terminated correctly, its end does "
                                  "not match expected end " +
                                  std::to_string(offset) + "/" +
