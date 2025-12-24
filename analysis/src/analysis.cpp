@@ -229,7 +229,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // Use provided log file path or default to "interpreter.log"
   std::string log_file = (argc >= 3) ? argv[2] : "analysis.log";
   init_logger(log_file);
 
