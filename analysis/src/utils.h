@@ -181,24 +181,19 @@ inline bool is_conditional_jmp(uint8_t opcode) {
   return opcode == CJMP_Z || opcode == CJMP_NZ;
 }
 
-// opcode which is a jump to a fixed offset
+// opcode which is unconditional jump
+inline bool is_unconditional_jmp(uint8_t opcode) { return opcode == JMP; }
+
+// opcode which is any jump to a fixed offset
 inline bool is_jmp(uint8_t opcode) {
-  return opcode == JMP || is_conditional_jmp(opcode);
+  return is_unconditional_jmp(opcode) || is_conditional_jmp(opcode);
 }
 
-// opcode which is a BEGIN or BEGINC
-inline bool is_begin(uint8_t opcode) {
-  return opcode == BEGIN || opcode == BEGINC;
+inline bool leads_to_label(uint8_t opcode) {
+  return opcode == CALL || is_jmp(opcode) || opcode == CLOSURE;
 }
 
-// opcode which allows to potentially reach some other method via
-// offset/address in the bytecode: CALL, CLOSURE
-inline bool is_adding_new_address(uint8_t opcode) {
-  return opcode == CALL || opcode == CLOSURE;
-}
-
-template <class T> void push_if_absent(std::vector<T> &vec, const T &val) {
-  if (std::find(vec.begin(), vec.end(), val) == vec.end()) {
-    vec.push_back(val);
-  }
+inline bool falls_through(uint8_t opcode) {
+  return !(opcode == END || opcode == RET || opcode == FAIL ||
+           opcode == EOF_OPCODE || is_unconditional_jmp(opcode));
 }

@@ -1,22 +1,63 @@
 #include <algorithm>
 #include <iostream>
-#include <set>
+#include <queue>
 
 #include "logger.h"
 #include "parsing.h"
 #include "utils.h"
 
 namespace {
-struct InstructionRange {
-  uint32_t offset; // in the bytecode file
-  uint32_t length; // in bytes including all parameters
+const uint32_t OFFSET_MAX = 0x7FFFFFFF;
+const uint32_t DOUBLE_INSN_MASK = 0x80000000;
+
+struct SmartInstructionRange {
+  // we are agreed to have bytecode file <= 1GB, so we only use 31 lower bits of
+  // the offset one more bit we can use to mark, whether the range is a single
+  // or double instruction
+  uint32_t smart_offset;
+  // count which is used for counting the number of the matching instructions
+  uint32_t cnt;
+
+  uint32_t offset() const { return smart_offset & OFFSET_MAX; }
+
+  bool is_single() const { return (smart_offset & DOUBLE_INSN_MASK) == 0; }
+
+  uint32_t length(const BytecodeFile &bc) const {
+    uint32_t insn_offset = offset();
+    uint32_t insn_length =
+        instruction_length(bc.get_bytecode() + insn_offset, bc);
+
+    // if double, then add a second instruction length
+    if (!is_single()) {
+      insn_length +=
+          instruction_length(bc.get_bytecode() + insn_offset + insn_length, bc);
+    }
+
+    return insn_length;
+  }
+
+  // return true if a < b, false otherwise
+  static bool lexicographical_compare(const SmartInstructionRange &a,
+                                      const SmartInstructionRange &b,
+                                      const BytecodeFile &bc) {
+    const uint8_t *bytecode = bc.get_bytecode();
+    uint32_t a_length = a.length(bc);
+    uint32_t b_length = b.length(bc);
+    int result = std::memcmp(bytecode + a.offset(), bytecode + b.offset(),
+                             std::min(a_length, b_length));
+
+    if (result == 0) {
+      return a_length < b_length;
+    }
+    return result < 0;
+  }
 };
 
-std::string instruction_range_to_string(const InstructionRange &range,
+std::string instruction_range_to_string(const SmartInstructionRange &range,
                                         BytecodeFile &bc) {
   std::stringstream ss;
-  uint32_t offset = range.offset;
-  uint32_t length = range.length;
+  uint32_t offset = range.offset();
+  uint32_t length = range.length(bc);
 
   const uint8_t *bytecode_start = bc.get_bytecode();
   const uint8_t *ip = bytecode_start + offset;
@@ -43,234 +84,185 @@ std::string instruction_range_to_string(const InstructionRange &range,
 
 class Analyser {
   BytecodeFile &bc;
-  int k;
 
 public:
-  explicit Analyser(BytecodeFile &bc, int k) : bc(bc), k(k) {}
+  explicit Analyser(BytecodeFile &bc) : bc(bc) {}
 
   void analyse() {
     std::cout << "Analyzing bytecode..." << std::endl;
 
-    // collect instruction ranges of length 1..k from basic blocks
-    std::vector<InstructionRange> ranges = get_ranges_from_basic_blocks();
-
-    /*
-    we have all ranges of length 1..k for all basic blocks
-    1. sort them by lexicographical order of the instruction ranges
-    2. count the number of matching ones:
-      a. if 2 neighbouring sequences are the same, do +=1 to the current
-      counter
-      b. if neighbours do not match, save the prev bucket {
-      InstructionRange, count } and set count to 1. The 'InstructionRange'
-      can be taken any of the matched values, because as byte-sequences they
-      are equal
-    3. the resulting bucket vector of { InstructionRange, count } pairs,
-        sort by the count this is the answer for the current i
-    */
+    // collect instruction ranges of length 1..2 from basic blocks
+    std::vector<SmartInstructionRange> ranges = get_ranges();
 
     // 1. sort ranges by lexicographical order of the instruction ranges
     std::sort(ranges.begin(), ranges.end(),
-              [this](const InstructionRange &a, const InstructionRange &b) {
-                const uint8_t *bytecode = bc.get_bytecode();
-                int result =
-                    std::memcmp(bytecode + a.offset, bytecode + b.offset,
-                                std::min(a.length, b.length));
-                if (result == 0) {
-                  return a.length < b.length;
-                }
-                return result < 0;
+              [this](const auto &a, const auto &b) {
+                return SmartInstructionRange::lexicographical_compare(a, b, bc);
               });
-    LOG(log() << "Sorted ranges of 1.." << k << " instructions:" << std::endl);
+    LOG(log() << "Sorted ranges of 1..2 instructions:" << std::endl);
     for (const auto &range : ranges) {
       LOG(log() << "  " << instruction_range_to_string(range, bc) << std::endl);
     }
 
     // 2. count the number of matching instruction ranges
-    std::vector<std::pair<uint32_t /* index of range */, uint32_t>> counts = {
-        {0, 1}};
-    for (size_t j = 1; j < ranges.size(); ++j) {
-      const InstructionRange &curr = ranges[j];
-      const InstructionRange &prev = ranges[j - 1];
-      const uint8_t *bytecode = bc.get_bytecode();
+    // the counting is done in the same vector, where the ranges are stored,
+    // we just increment the count of the current range (the first one from the
+    // matching span)
+    const uint8_t *bytecode = bc.get_bytecode();
+    for (uint32_t current = 0; current < ranges.size();) {
+      auto &current_range = ranges[current];
+      uint32_t current_length = current_range.length(bc);
+      current_range.cnt++; // set the current count to 1 right away
 
-      bool equal = curr.length == prev.length &&
-                   (std::memcmp(bytecode + curr.offset, bytecode + prev.offset,
-                                curr.length) == 0);
+      uint32_t next = current + 1;
+      for (; next < ranges.size(); ++next) {
+        const auto &next_range = ranges[next];
+        uint32_t next_length = next_range.length(bc);
 
-      if (equal) {
-        counts.back().second++;
-      } else {
-        counts.push_back({j, 1});
+        bool equal =
+            current_length == next_length &&
+            (std::memcmp(bytecode + current_range.offset(),
+                         bytecode + next_range.offset(), current_length) == 0);
+
+        if (!equal) {
+          break;
+        }
+        current_range.cnt++;
       }
+
+      current = next;
     }
 
-    // 3. sort buckets by the count
-    std::sort(counts.begin(), counts.end(),
-              [this, &ranges](const auto &a, const auto &b) {
-                if (a.second == b.second) {
-                  const InstructionRange &range_a = ranges[a.first];
-                  const InstructionRange &range_b = ranges[b.first];
-                  const uint8_t *bytecode_start = bc.get_bytecode();
-                  return std::memcmp(bytecode_start + range_a.offset,
-                                     bytecode_start + range_b.offset,
-                                     std::min(range_a.length, range_b.length)) <
-                         0;
-                }
-                return a.second > b.second;
-              });
+    // 3. sort buckets by the count in descending order
+    std::sort(
+        ranges.begin(), ranges.end(), [this](const auto &a, const auto &b) {
+          if (a.cnt == b.cnt) {
+            // for matching counts, sort by the lexicographical order of
+            // the instruction ranges
+            return SmartInstructionRange::lexicographical_compare(a, b, bc);
+          }
+          return a.cnt > b.cnt;
+        });
 
-    // 4. print buckets
+    // 4. print buckets, skipping zeros -- they are duplicates
     std::cout << "Counts of instructions:" << std::endl;
-    for (const auto &count : counts) {
-      std::cout << "  " << count.second << "  "
-                << instruction_range_to_string(ranges[count.first], bc)
-                << std::endl;
+    for (const auto &range : ranges) {
+      if (range.cnt == 0) {
+        break;
+      }
+      std::cout << "  " << range.cnt << "  "
+                << instruction_range_to_string(range, bc) << std::endl;
     }
   }
 
 private:
-  std::vector<InstructionRange> get_ranges_from_basic_blocks() {
-    std::vector<InstructionRange> ranges;
-    uint32_t bb_index = 0;
-    uint32_t curr_offset_index = 0;
-    std::vector<uint32_t> call_offsets;
+  std::vector<SmartInstructionRange> get_ranges() {
+    auto [reachable, labels] = get_transitive_closure();
+    // each element in range is a
+    // { offset | 32-nd bit = { 0=single, 1=double }, cnt }
+    // so each range takes 8 bytes, the maximum number of ranges is
+    // twice the bytecode size, so we get <=16x of memory usage
+    std::vector<SmartInstructionRange> ranges;
 
-    // populate call_offsets with the public symbols
-    for (const auto &symbol : bc.get_public_symbols()) {
-      // all are unique
-      call_offsets.push_back(symbol.second);
-    }
+    for (uint32_t offset = 0; offset < reachable.size();) {
+      if (!reachable[offset]) {
+        offset++;
+        continue;
+      }
 
-    // while we have addresses of methods to collect basic blocks, do that
-    while (curr_offset_index < call_offsets.size()) {
-      LOG(log() << "Collecting basic blocks for method at offset: "
-                << STR_HEX(call_offsets[curr_offset_index], 8) << std::endl);
-      collect_ranges_from_basic_blocks(ranges, bb_index, call_offsets,
-                                       call_offsets[curr_offset_index]);
-      curr_offset_index++;
+      // collect instruction ranges of length 1 and 2
+      ranges.push_back({offset, 0}); // count is zero by default
+      uint32_t length = instruction_length(bc.get_bytecode() + offset, bc);
+
+      bool can_be_double =
+          (offset + length < reachable.size() && reachable[offset + length] &&
+           !labels[offset + length]);
+
+      if (can_be_double) {
+        // add a double instruction range if the second instruction is also
+        // reachable
+        ranges.push_back({
+            offset | DOUBLE_INSN_MASK, // set 32-nd bit
+            0                          // count is zero by default
+        });
+      }
+
+      // shift by the current instruction size
+      // then for loop will go to the next reachable instruction by itself
+      offset += length;
     }
 
     return ranges;
   }
 
-  // Collect basic blocks of the method, which starts at call_offset
-  // also populates found methods calls to the call_offsets queue for further
-  // basic blocks collection.
-  // From each basic block, collect the ranges of bytecode instructions of
-  // length 1, ..., k right away.
-  void collect_ranges_from_basic_blocks(std::vector<InstructionRange> &ranges,
-                                        uint32_t &bb_index,
-                                        std::vector<uint32_t> &call_offsets,
-                                        uint32_t call_start_offset) {
-    // Identify leaders (first instructions of basic blocks).
-    //
-    // An instruction is a leader if it is:
-    //   1. the first instruction of the call;
-    //   2. any instruction that is the target of a conditional or unconditional
-    //   jump;
-    //   3. instruction immediately following a conditional if jump (since
-    //   control may fall through)
-    std::vector<uint32_t> leaders;
-    uint32_t bytecode_size = bc.get_bytecode_size();
-    const uint8_t *bytecode_start = bc.get_bytecode();
-    const uint8_t *ip = bytecode_start + call_start_offset;
+  // Returns a pair of marked vectors: reachable offsets and labels
+  std::pair<std::vector<bool>, std::vector<bool>> get_transitive_closure() {
+    std::vector<bool> reachable(bc.get_bytecode_size(), false);
+    std::vector<bool> labels(bc.get_bytecode_size(), false);
+    std::queue<uint32_t> work_set;
 
-    while (*ip != END) {
-      uint8_t opcode = *ip;
-      uint32_t length = instruction_length(ip, bc);
+    // mark the public symbols
+    for (const auto &symbol : bc.get_public_symbols()) {
+      if (reachable[symbol.second])
+        continue; // if a duplicate is found, skip it
+      reachable[symbol.second] = true;
+      work_set.push(symbol.second);
+    }
 
-      // check if we get some new leader
-      if (is_begin(opcode)) {
-        // first instruction of method call
-        uint32_t leader_offset = ip - bytecode_start;
-        push_if_absent(leaders, leader_offset);
-      } else if (is_jmp(opcode)) {
-        uint32_t target_offset = read_uint32(ip + 1);
-        // target of the jump
-        push_if_absent(leaders, target_offset);
+    while (!work_set.empty()) {
+      // work set offsets are already marked as reachable
+      uint32_t offset = work_set.front();
+      work_set.pop();
+      uint8_t opcode = *(bc.get_bytecode() + offset);
 
-        if (is_conditional_jmp(opcode)) {
-          uint32_t next_offset = ip + length - bytecode_start;
-          if (next_offset < bytecode_size) {
-            // fall-through instruction of the conditional jump
-            push_if_absent(leaders, next_offset);
-          }
+      if (leads_to_label(opcode)) {
+        // all instructions have the offset right after the opcode
+        uint32_t target_offset = read_uint32(bc.get_bytecode() + offset + 1);
+        validate_offset(target_offset);
+
+        if (!reachable[target_offset]) {
+          reachable[target_offset] = true;
+          labels[target_offset] = true;
+          work_set.push(target_offset);
         }
       }
 
-      // check if we get some new address for processing
-      if (is_adding_new_address(opcode)) {
-        // for CALL and CLOSURE the offset lie right after the opcode
-        uint32_t new_address = read_uint32(ip + 1);
-        push_if_absent(call_offsets, new_address);
-      }
+      if (falls_through(opcode)) {
+        uint32_t next_offset =
+            offset + instruction_length(bc.get_bytecode() + offset, bc);
+        validate_offset(next_offset);
 
-      ip += length;
-    }
-    // read the length of the END instruction
-    ip += instruction_length(ip, bc);
-    // offset of the END instruction of the method
-    uint32_t call_end_offset = ip - bytecode_start;
-
-    std::sort(leaders.begin(), leaders.end());
-    for (auto it = leaders.begin(); it != leaders.end(); ++it) {
-      uint32_t start_offset = *it;
-      auto next_it = std::next(it);
-      uint32_t end_offset =
-          (next_it != leaders.end()) ? *next_it : call_end_offset; // exclusive
-      InstructionRange block = {start_offset, end_offset - start_offset};
-
-      // print basic block
-      print_basic_block(bb_index++, block);
-      // collect ranges from it right away
-      collect_ranges_from_basic_block(ranges, block);
-    }
-  }
-
-  void print_basic_block(uint32_t bb_index, const InstructionRange &block) {
-    // print basic blocks
-    LOG(log() << "Basic block: " << bb_index << " {" << STR_HEX(block.offset, 8)
-              << ", " << block.length << "}" << std::endl);
-
-    uint32_t offset = block.offset;
-    while (offset < block.offset + block.length) {
-      LOG(log() << "  " << STR_HEX(offset, 8) << ":\t");
-      LOG(print_instruction(log(), bc.get_bytecode() + offset, bc));
-      LOG(log() << std::endl);
-      offset += instruction_length(bc.get_bytecode() + offset, bc);
-    }
-  }
-
-  void collect_ranges_from_basic_block(std::vector<InstructionRange> &ranges,
-                                       const InstructionRange &block) {
-    // count instructions of length 1, ..., k
-    for (int i = 1; i <= k; ++i) {
-      // collect instruction ranges of length i
-      uint32_t offset = block.offset;
-      while (offset < block.offset + block.length) {
-        // collect i instructions starting from offset
-        uint32_t next_insn_offset = offset;
-        uint32_t combined_length = 0;
-        bool has_enough_insns = true;
-
-        for (int j = 0; j < i; ++j) {
-          if (next_insn_offset >= block.offset + block.length) {
-            has_enough_insns = false;
-            break;
-          }
-          uint32_t len =
-              instruction_length(bc.get_bytecode() + next_insn_offset, bc);
-          next_insn_offset += len;
-          combined_length += len;
+        if (!reachable[next_offset]) {
+          reachable[next_offset] = true;
+          work_set.push(next_offset);
         }
-
-        if (!has_enough_insns)
-          break;
-
-        ranges.push_back({offset, combined_length});
-        // move 1 instruction forward
-        offset += instruction_length(bc.get_bytecode() + offset, bc);
       }
+    }
+
+    // print reachable offsets and labels
+    LOG(log() << "Reachable offsets:" << std::endl);
+    for (uint32_t i = 0; i < reachable.size(); ++i) {
+      if (reachable[i]) {
+        LOG(log() << "  " << STR_HEX(i, 8) << ":    ");
+        LOG(log() << instruction_range_to_string(SmartInstructionRange{i, 0},
+                                                 bc)
+                  << std::endl);
+      }
+    }
+    LOG(log() << "Labels:" << std::endl);
+    for (uint32_t i = 0; i < labels.size(); ++i) {
+      if (labels[i]) {
+        LOG(log() << "  " << STR_HEX(i, 8) << std::endl);
+      }
+    }
+
+    return {reachable, labels};
+  }
+
+  void validate_offset(uint32_t offset) {
+    if (offset >= bc.get_bytecode_size()) {
+      throw std::runtime_error("Invalid offset: " + STR_HEX(offset, 8) +
+                               " >= " + STR_HEX(bc.get_bytecode_size(), 8));
     }
   }
 };
@@ -287,7 +279,7 @@ int main(int argc, char *argv[]) {
 
   try {
     BytecodeFile bc(argv[1]);
-    Analyser analyser(bc, 2);
+    Analyser analyser(bc);
 
     LOG(log() << "Loaded bytecode file:" << std::endl);
     LOG(log() << "  String table size: " << bc.get_stringtab_size() << " bytes"
