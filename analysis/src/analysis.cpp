@@ -70,9 +70,8 @@ public:
     }
 
     // count instructions of length 1, ..., k
+    std::vector<InstructionRange> ranges;
     for (int i = 1; i <= k; ++i) {
-      std::vector<InstructionRange> ranges;
-
       for (const auto &block : basic_blocks) {
         // collect instruction ranges of length i
         uint32_t offset = block.offset;
@@ -101,79 +100,77 @@ public:
           offset += instruction_length(bc.get_bytecode() + offset, bc);
         }
       }
+    }
 
-      /*
-      we have all ranges of length i for all basic blocks
-      1. sort them by lexicographical order of the instruction ranges
-      2. count the number of matching ones:
-        a. if 2 neighbouring sequences are the same, do +=1 to the current
-        counter
-        b. if neighbours do not match, save the prev bucket {
-        InstructionRange, count } and set count to 1. The 'InstructionRange'
-        can be taken any of the matched values, because as byte-sequences they
-        are equal
-      3. the resulting bucket vector of { InstructionRange, count } pairs,
-          sort by the count this is the answer for the current i
-      */
+    /*
+    we have all ranges of length 1..k for all basic blocks
+    1. sort them by lexicographical order of the instruction ranges
+    2. count the number of matching ones:
+      a. if 2 neighbouring sequences are the same, do +=1 to the current
+      counter
+      b. if neighbours do not match, save the prev bucket {
+      InstructionRange, count } and set count to 1. The 'InstructionRange'
+      can be taken any of the matched values, because as byte-sequences they
+      are equal
+    3. the resulting bucket vector of { InstructionRange, count } pairs,
+        sort by the count this is the answer for the current i
+    */
 
-      // 1. sort ranges by lexicographical order of the instruction ranges
-      std::sort(ranges.begin(), ranges.end(),
-                [this](const InstructionRange &a, const InstructionRange &b) {
-                  const uint8_t *bytecode = bc.get_bytecode();
-                  int result =
-                      std::memcmp(bytecode + a.offset, bytecode + b.offset,
-                                  std::min(a.length, b.length));
-                  if (result == 0) {
-                    return a.length < b.length;
-                  }
-                  return result < 0;
-                });
-      LOG(log() << "Sorted ranges of " << i << " instructions:" << std::endl);
-      for (const auto &range : ranges) {
-        LOG(log() << "  " << instruction_range_to_string(range, bc)
-                  << std::endl);
+    // 1. sort ranges by lexicographical order of the instruction ranges
+    std::sort(ranges.begin(), ranges.end(),
+              [this](const InstructionRange &a, const InstructionRange &b) {
+                const uint8_t *bytecode = bc.get_bytecode();
+                int result =
+                    std::memcmp(bytecode + a.offset, bytecode + b.offset,
+                                std::min(a.length, b.length));
+                if (result == 0) {
+                  return a.length < b.length;
+                }
+                return result < 0;
+              });
+    LOG(log() << "Sorted ranges of 1.." << k << " instructions:" << std::endl);
+    for (const auto &range : ranges) {
+      LOG(log() << "  " << instruction_range_to_string(range, bc) << std::endl);
+    }
+
+    // 2. count the number of matching ones
+    std::vector<std::pair<InstructionRange, uint32_t>> counts = {
+        {ranges[0], 1}};
+    for (size_t j = 1; j < ranges.size(); ++j) {
+      const InstructionRange &curr = ranges[j];
+      const InstructionRange &prev = ranges[j - 1];
+      const uint8_t *bytecode = bc.get_bytecode();
+
+      bool equal = curr.length == prev.length &&
+                   (std::memcmp(bytecode + curr.offset, bytecode + prev.offset,
+                                curr.length) == 0);
+
+      if (equal) {
+        counts.back().second++;
+      } else {
+        counts.push_back({curr, 1});
       }
+    }
 
-      // 2. count the number of matching ones
-      std::vector<std::pair<InstructionRange, uint32_t>> counts = {
-          {ranges[0], 1}};
-      for (size_t j = 1; j < ranges.size(); ++j) {
-        const InstructionRange &curr = ranges[j];
-        const InstructionRange &prev = ranges[j - 1];
-        const uint8_t *bytecode = bc.get_bytecode();
+    // 3. sort buckets by the count
+    std::sort(counts.begin(), counts.end(),
+              [this](const std::pair<InstructionRange, int> &a,
+                     const std::pair<InstructionRange, int> &b) {
+                if (a.second == b.second) {
+                  const uint8_t *bytecode_start = bc.get_bytecode();
+                  return std::memcmp(bytecode_start + a.first.offset,
+                                     bytecode_start + b.first.offset,
+                                     std::min(a.first.length, b.first.length)) <
+                         0;
+                }
+                return a.second > b.second;
+              });
 
-        bool equal = curr.length == prev.length &&
-                     (std::memcmp(bytecode + curr.offset,
-                                  bytecode + prev.offset, curr.length) == 0);
-
-        if (equal) {
-          counts.back().second++;
-        } else {
-          counts.push_back({curr, 1});
-        }
-      }
-
-      // 3. sort buckets by the count
-      std::sort(counts.begin(), counts.end(),
-                [this](const std::pair<InstructionRange, int> &a,
-                       const std::pair<InstructionRange, int> &b) {
-                  if (a.second == b.second) {
-                    const uint8_t *bytecode_start = bc.get_bytecode();
-                    return std::memcmp(
-                               bytecode_start + a.first.offset,
-                               bytecode_start + b.first.offset,
-                               std::min(a.first.length, b.first.length)) < 0;
-                  }
-                  return a.second > b.second;
-                });
-
-      // 4. print buckets
-      std::cout << "Counts of " << i << " instructions:" << std::endl;
-      for (const auto &count : counts) {
-        std::cout << "  " << count.second << "  "
-                  << instruction_range_to_string(count.first, bc) << std::endl;
-      }
-      std::cout << std::endl;
+    // 4. print buckets
+    std::cout << "Counts of instructions:" << std::endl;
+    for (const auto &count : counts) {
+      std::cout << "  " << count.second << "  "
+                << instruction_range_to_string(count.first, bc) << std::endl;
     }
   }
 
