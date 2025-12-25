@@ -43,64 +43,16 @@ std::string instruction_range_to_string(const InstructionRange &range,
 
 class Analyser {
   BytecodeFile &bc;
+  int k;
 
 public:
-  explicit Analyser(BytecodeFile &bc) : bc(bc) {}
+  explicit Analyser(BytecodeFile &bc, int k) : bc(bc), k(k) {}
 
-  void analyse(int k) {
+  void analyse() {
     std::cout << "Analyzing bytecode..." << std::endl;
 
-    // collect basic blocks
-    std::vector<InstructionRange> basic_blocks = get_basic_blocks();
-
-    // print basic blocks
-    for (size_t bb_index = 0; bb_index < basic_blocks.size(); bb_index++) {
-      const auto &block = basic_blocks[bb_index];
-      LOG(log() << "Basic block: " << bb_index << " {"
-                << STR_HEX(block.offset, 8) << ", " << block.length << "}"
-                << std::endl);
-
-      uint32_t offset = block.offset;
-      while (offset < block.offset + block.length) {
-        LOG(log() << "  " << STR_HEX(offset, 8) << ":\t");
-        LOG(print_instruction(log(), bc.get_bytecode() + offset, bc));
-        LOG(log() << std::endl);
-        offset += instruction_length(bc.get_bytecode() + offset, bc);
-      }
-    }
-
-    // count instructions of length 1, ..., k
-    std::vector<InstructionRange> ranges;
-    for (int i = 1; i <= k; ++i) {
-      for (const auto &block : basic_blocks) {
-        // collect instruction ranges of length i
-        uint32_t offset = block.offset;
-        while (offset < block.offset + block.length) {
-          // collect i instructions starting from offset
-          uint32_t next_insn_offset = offset;
-          uint32_t combined_length = 0;
-          bool has_enough_insns = true;
-
-          for (int j = 0; j < i; ++j) {
-            if (next_insn_offset >= block.offset + block.length) {
-              has_enough_insns = false;
-              break;
-            }
-            uint32_t len =
-                instruction_length(bc.get_bytecode() + next_insn_offset, bc);
-            next_insn_offset += len;
-            combined_length += len;
-          }
-
-          if (!has_enough_insns)
-            break;
-
-          ranges.push_back({offset, combined_length});
-          // move 1 instruction forward
-          offset += instruction_length(bc.get_bytecode() + offset, bc);
-        }
-      }
-    }
+    // collect instruction ranges of length 1..k from basic blocks
+    std::vector<InstructionRange> ranges = get_ranges_from_basic_blocks();
 
     /*
     we have all ranges of length 1..k for all basic blocks
@@ -133,9 +85,9 @@ public:
       LOG(log() << "  " << instruction_range_to_string(range, bc) << std::endl);
     }
 
-    // 2. count the number of matching ones
-    std::vector<std::pair<InstructionRange, uint32_t>> counts = {
-        {ranges[0], 1}};
+    // 2. count the number of matching instruction ranges
+    std::vector<std::pair<uint32_t /* index of range */, uint32_t>> counts = {
+        {0, 1}};
     for (size_t j = 1; j < ranges.size(); ++j) {
       const InstructionRange &curr = ranges[j];
       const InstructionRange &prev = ranges[j - 1];
@@ -148,19 +100,20 @@ public:
       if (equal) {
         counts.back().second++;
       } else {
-        counts.push_back({curr, 1});
+        counts.push_back({j, 1});
       }
     }
 
     // 3. sort buckets by the count
     std::sort(counts.begin(), counts.end(),
-              [this](const std::pair<InstructionRange, int> &a,
-                     const std::pair<InstructionRange, int> &b) {
+              [this, &ranges](const auto &a, const auto &b) {
                 if (a.second == b.second) {
+                  const InstructionRange &range_a = ranges[a.first];
+                  const InstructionRange &range_b = ranges[b.first];
                   const uint8_t *bytecode_start = bc.get_bytecode();
-                  return std::memcmp(bytecode_start + a.first.offset,
-                                     bytecode_start + b.first.offset,
-                                     std::min(a.first.length, b.first.length)) <
+                  return std::memcmp(bytecode_start + range_a.offset,
+                                     bytecode_start + range_b.offset,
+                                     std::min(range_a.length, range_b.length)) <
                          0;
                 }
                 return a.second > b.second;
@@ -170,13 +123,15 @@ public:
     std::cout << "Counts of instructions:" << std::endl;
     for (const auto &count : counts) {
       std::cout << "  " << count.second << "  "
-                << instruction_range_to_string(count.first, bc) << std::endl;
+                << instruction_range_to_string(ranges[count.first], bc)
+                << std::endl;
     }
   }
 
 private:
-  std::vector<InstructionRange> get_basic_blocks() {
-    std::vector<InstructionRange> basic_blocks;
+  std::vector<InstructionRange> get_ranges_from_basic_blocks() {
+    std::vector<InstructionRange> ranges;
+    uint32_t bb_index = 0;
     uint32_t curr_offset_index = 0;
     std::vector<uint32_t> call_offsets;
 
@@ -190,20 +145,23 @@ private:
     while (curr_offset_index < call_offsets.size()) {
       LOG(log() << "Collecting basic blocks for method at offset: "
                 << STR_HEX(call_offsets[curr_offset_index], 8) << std::endl);
-      collect_basic_blocks(basic_blocks, call_offsets,
-                           call_offsets[curr_offset_index]);
+      collect_ranges_from_basic_blocks(ranges, bb_index, call_offsets,
+                                       call_offsets[curr_offset_index]);
       curr_offset_index++;
     }
 
-    return basic_blocks;
+    return ranges;
   }
 
-  // collect basic blocks of the method, which starts at call_offset
+  // Collect basic blocks of the method, which starts at call_offset
   // also populates found methods calls to the call_offsets queue for further
-  // basic blocks collection
-  void collect_basic_blocks(std::vector<InstructionRange> &basic_blocks,
-                            std::vector<uint32_t> &call_offsets,
-                            uint32_t call_start_offset) {
+  // basic blocks collection.
+  // From each basic block, collect the ranges of bytecode instructions of
+  // length 1, ..., k right away.
+  void collect_ranges_from_basic_blocks(std::vector<InstructionRange> &ranges,
+                                        uint32_t &bb_index,
+                                        std::vector<uint32_t> &call_offsets,
+                                        uint32_t call_start_offset) {
     // Identify leaders (first instructions of basic blocks).
     //
     // An instruction is a leader if it is:
@@ -260,7 +218,59 @@ private:
       auto next_it = std::next(it);
       uint32_t end_offset =
           (next_it != leaders.end()) ? *next_it : call_end_offset; // exclusive
-      basic_blocks.push_back({start_offset, end_offset - start_offset});
+      InstructionRange block = {start_offset, end_offset - start_offset};
+
+      // print basic block
+      print_basic_block(bb_index++, block);
+      // collect ranges from it right away
+      collect_ranges_from_basic_block(ranges, block);
+    }
+  }
+
+  void print_basic_block(uint32_t bb_index, const InstructionRange &block) {
+    // print basic blocks
+    LOG(log() << "Basic block: " << bb_index << " {" << STR_HEX(block.offset, 8)
+              << ", " << block.length << "}" << std::endl);
+
+    uint32_t offset = block.offset;
+    while (offset < block.offset + block.length) {
+      LOG(log() << "  " << STR_HEX(offset, 8) << ":\t");
+      LOG(print_instruction(log(), bc.get_bytecode() + offset, bc));
+      LOG(log() << std::endl);
+      offset += instruction_length(bc.get_bytecode() + offset, bc);
+    }
+  }
+
+  void collect_ranges_from_basic_block(std::vector<InstructionRange> &ranges,
+                                       const InstructionRange &block) {
+    // count instructions of length 1, ..., k
+    for (int i = 1; i <= k; ++i) {
+      // collect instruction ranges of length i
+      uint32_t offset = block.offset;
+      while (offset < block.offset + block.length) {
+        // collect i instructions starting from offset
+        uint32_t next_insn_offset = offset;
+        uint32_t combined_length = 0;
+        bool has_enough_insns = true;
+
+        for (int j = 0; j < i; ++j) {
+          if (next_insn_offset >= block.offset + block.length) {
+            has_enough_insns = false;
+            break;
+          }
+          uint32_t len =
+              instruction_length(bc.get_bytecode() + next_insn_offset, bc);
+          next_insn_offset += len;
+          combined_length += len;
+        }
+
+        if (!has_enough_insns)
+          break;
+
+        ranges.push_back({offset, combined_length});
+        // move 1 instruction forward
+        offset += instruction_length(bc.get_bytecode() + offset, bc);
+      }
     }
   }
 };
@@ -277,7 +287,7 @@ int main(int argc, char *argv[]) {
 
   try {
     BytecodeFile bc(argv[1]);
-    Analyser analyser(bc);
+    Analyser analyser(bc, 2);
 
     LOG(log() << "Loaded bytecode file:" << std::endl);
     LOG(log() << "  String table size: " << bc.get_stringtab_size() << " bytes"
@@ -302,7 +312,7 @@ int main(int argc, char *argv[]) {
     LOG(log() << "  Bytecode size: " << bc.get_bytecode_size() << " bytes"
               << std::endl);
 
-    analyser.analyse(2);
+    analyser.analyse();
 
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
