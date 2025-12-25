@@ -62,95 +62,50 @@ By default it writes all produced artifacts to the `test_results` folder, which 
 1. Primary test is the `performace/Sort.lama`, its results are the following:
     ```
     Analyzing bytecode...
-    Counts of 1 instructions:
+    Counts of instructions:
       31  DROP
       28  DUP
       21  ELEM
       16  CONST 1
-      11  CONST 0
-      7  LD A(0)
-      5  JMP 0x000002fa
-      5  END
-      4  SEXP cons 2
-      3  JMP 0x0000015e
-      3  LD L(0)
-      3  LD L(3)
-      3  ST L(0)
-      3  CALL 0x0000015f 1
-      3  ARRAY 2
-      3  CALL_ARRAY 2
-      2  BINOP ==
-      2  JMP 0x00000074
-      2  LD L(1)
-      2  BEGIN 1 0
-      2  CALL 0x0000002b 1
-      2  CALL 0x00000097 1
-      2  TAG cons 2
-      1  BINOP -
-      1  BINOP >
-      1  CONST 10000
-      1  JMP 0x00000106
-      1  JMP 0x00000150
-      1  JMP 0x00000182
-      1  JMP 0x000002cb
-      1  JMP 0x000002de
-      1  LD L(2)
-      1  LD L(4)
-      1  LD L(5)
-      1  ST L(1)
-      1  ST L(2)
-      1  ST L(3)
-      1  ST L(4)
-      1  ST L(5)
-      1  CJMP_Z 0x00000112
-      1  CJMP_Z 0x00000258
-      1  CJMP_Z 0x0000006a
-      1  CJMP_Z 0x000000bf
-      1  CJMP_NZ 0x00000118
-      1  CJMP_NZ 0x0000027d
-      1  CJMP_NZ 0x00000188
-      1  CJMP_NZ 0x000001ac
-      1  CJMP_NZ 0x000000c5
-      1  BEGIN 1 1
-      1  BEGIN 1 6
-      1  BEGIN 2 0
-      1  CALL 0x00000075 1
-      1  FAIL 7 17
-      1  FAIL 14 9
-      1  LINE 3
-      1  LINE 5
-      1  LINE 6
-      1  LINE 7
-      1  LINE 9
-      1  LINE 14
-      1  LINE 15
-      1  LINE 16
-      1  LINE 18
-      1  LINE 20
-      1  LINE 24
-      1  LINE 25
-      1  LINE 27
-      1  <end>
-
-    Counts of 2 instructions:
       13  CONST 1 | ELEM
+      11  CONST 0
       11  DROP | DUP
       11  DUP | CONST 1
       10  DROP | DROP
       8  CONST 0 | ELEM
       7  DUP | CONST 0
       7  ELEM | DROP
+      7  LD A(0)
+      5  JMP 0x000002fa
+      5  END
+      4  SEXP cons 2
       4  DUP | DUP
+      3  JMP 0x0000015e
       3  DUP | ARRAY 2
       3  ELEM | ST L(0)
+      3  LD L(0)
+      3  LD L(3)
+      3  ST L(0)
       3  ST L(0) | DROP
+      3  CALL 0x0000015f 1
+      3  ARRAY 2
       3  CALL_ARRAY 2 | JMP 0x000002fa
+      3  CALL_ARRAY 2
+      2  BINOP ==
       2  SEXP cons 2 | CALL_ARRAY 2
+      2  JMP 0x00000074
       2  DUP | TAG cons 2
       2  ELEM | CONST 0
       2  ELEM | CONST 1
+      2  LD L(1)
+      2  BEGIN 1 0
+      2  CALL 0x0000002b 1
       2  CALL 0x0000015f 1 | DUP
+      2  CALL 0x00000097 1
+      2  TAG cons 2
       1  BINOP - | CALL 0x0000002b 1
+      1  BINOP -
+      1  BINOP >
       1  BINOP > | CJMP_Z 0x00000258
       1  BINOP == | CJMP_Z 0x00000112
       1  BINOP == | CJMP_Z 0x000000bf
@@ -160,11 +115,16 @@ By default it writes all produced artifacts to the `test_results` folder, which 
       1  CONST 1 | BINOP -
       1  CONST 1 | BINOP ==
       1  CONST 1 | LINE 6
+      1  CONST 10000
       1  CONST 10000 | CALL 0x0000002b 1
       1  SEXP cons 2 | JMP 0x00000074
       1  SEXP cons 2 | CALL 0x0000015f 1
+      1  JMP 0x00000106
+      1  JMP 0x00000150
+      1  JMP 0x00000182
+      1  JMP 0x000002cb
+      1  JMP 0x000002de
       1  JMP 0x000002fa | JMP 0x000002fa
-      1  END | <end>
       1  DROP | CONST 0
       1  DROP | JMP 0x00000106
       1  DROP | JMP 0x00000150
@@ -188,12 +148,15 @@ By default it writes all produced artifacts to the `test_results` folder, which 
       1  LD L(0) | CALL 0x00000097 1
       1  LD L(1) | BINOP >
       1  LD L(1) | LD L(3)
+      1  LD L(2)
       1  LD L(2) | CALL 0x0000015f 1
       1  LD L(3) | LD L(0)
       1  LD L(3) | LD L(1)
       1  LD L(3) | LD L(4)
+      1  LD L(4)
       1  LD L(4) | SEXP cons 2
       1  LD L(5) | LD L(3)
+      1  LD L(5)
       1  LD A(0) | CONST 1
       1  LD A(0) | DUP
       1  LD A(0) | LD A(0)
@@ -201,19 +164,37 @@ By default it writes all produced artifacts to the `test_results` folder, which 
       1  LD A(0) | CALL 0x0000015f 1
       1  LD A(0) | CALL 0x00000097 1
       1  LD A(0) | CALL_ARRAY 2
+      1  ST L(1)
       1  ST L(1) | DROP
+      1  ST L(2)
       1  ST L(2) | DROP
       1  ST L(3) | DROP
+      1  ST L(3)
+      1  ST L(4)
       1  ST L(4) | DROP
+      1  ST L(5)
       1  ST L(5) | DROP
+      1  CJMP_Z 0x00000112
+      1  CJMP_Z 0x00000258
+      1  CJMP_Z 0x0000006a
+      1  CJMP_Z 0x000000bf
+      1  CJMP_NZ 0x00000118
+      1  CJMP_NZ 0x0000027d
+      1  CJMP_NZ 0x00000188
+      1  CJMP_NZ 0x000001ac
+      1  CJMP_NZ 0x000000c5
       1  BEGIN 1 0 | LINE 18
       1  BEGIN 1 0 | LINE 24
+      1  BEGIN 1 1
       1  BEGIN 1 1 | LINE 14
       1  BEGIN 1 6 | LINE 3
+      1  BEGIN 1 6
+      1  BEGIN 2 0
       1  BEGIN 2 0 | LINE 25
       1  CALL 0x0000002b 1 | SEXP cons 2
       1  CALL 0x0000002b 1 | CALL 0x00000075 1
       1  CALL 0x0000015f 1 | CONST 1
+      1  CALL 0x00000075 1
       1  CALL 0x00000075 1 | END
       1  CALL 0x00000097 1 | JMP 0x0000015e
       1  CALL 0x00000097 1 | END
@@ -222,19 +203,34 @@ By default it writes all produced artifacts to the `test_results` folder, which 
       1  ARRAY 2 | CJMP_NZ 0x00000118
       1  ARRAY 2 | CJMP_NZ 0x0000027d
       1  ARRAY 2 | CJMP_NZ 0x000000c5
+      1  FAIL 7 17
       1  FAIL 7 17 | JMP 0x000002fa
       1  FAIL 14 9 | JMP 0x0000015e
+      1  FAIL 14 9
+      1  LINE 3
       1  LINE 3 | LD A(0)
       1  LINE 5 | LD L(3)
+      1  LINE 5
+      1  LINE 6
       1  LINE 6 | LD L(1)
       1  LINE 7 | LD L(2)
+      1  LINE 7
+      1  LINE 9
       1  LINE 9 | LD A(0)
       1  LINE 14 | LD A(0)
+      1  LINE 14
+      1  LINE 15
       1  LINE 15 | LD L(0)
       1  LINE 16 | LD L(0)
+      1  LINE 16
+      1  LINE 18
       1  LINE 18 | LINE 20
+      1  LINE 20
       1  LINE 20 | LD A(0)
+      1  LINE 24
       1  LINE 24 | LD A(0)
+      1  LINE 25
       1  LINE 25 | LINE 27
+      1  LINE 27
       1  LINE 27 | CONST 10000
     ```
