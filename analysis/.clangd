@@ -1,7 +1,6 @@
 CompileFlags:
   Add:
     # relative to the 'src' directory
-    - -I../../runtime 
     - -I../../common
     - -I.
     - -std=c++17

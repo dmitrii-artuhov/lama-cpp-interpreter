@@ -7,9 +7,9 @@
 
 # C++ Interpeter
 
-> Repository is modified in order to implement HW2 of "Virtual Machines" course in HSE 2025'.
+> Repository is modified in order to implement HW3 of "Virtual Machines" course in HSE 2025'.
 
-This is a modified version of original JetBrains Lama repository: it contains a C++ interpreter for Lama bytecode. You can find it and its description in [`/interpreter`](./interpreter/) folder.
+This is a modified version of original JetBrains Lama repository: it contains a C++ interpreter for Lama bytecode. You can find it and its description in [`/analysis`](./analysis/) folder.
 
 
 # Lama

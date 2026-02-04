@@ -48,3 +48,31 @@ public:
   const std::string_view get_string(uint32_t index) const;
   uint32_t get_public_symbol_offset(uint32_t public_symbol_index) const;
 };
+
+// Helper to read uint32 from file (little-endian)
+inline uint32_t read_uint32(std::ifstream &file) {
+  uint32_t value;
+  file.read(reinterpret_cast<char *>(&value), sizeof(uint32_t));
+  if (file.eof() && file.gcount() != sizeof(uint32_t)) {
+    throw std::runtime_error("Failed to read 4 bytes from file: unexpected "
+                             "end of file: read only " +
+                             std::to_string(file.gcount()));
+  }
+  if (file.fail()) {
+    throw std::runtime_error(
+        "Failed to read 4 bytes from file: input failure (failbit set): " +
+        std::to_string(file.gcount()));
+  }
+  if (file.bad()) {
+    throw std::runtime_error("Failed to read 4 bytes from file: "
+                             "irrecoverable stream error (badbit set): " +
+                             std::string(std::strerror(errno)));
+  }
+  return value;
+}
+
+inline uint32_t read_uint32(const uint8_t *offset) {
+  uint32_t value;
+  std::memcpy(&value, offset, sizeof(uint32_t));
+  return value;
+}

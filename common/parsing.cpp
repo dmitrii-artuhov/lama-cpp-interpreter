@@ -1,7 +1,7 @@
 #include <filesystem>
 
+#include "common.h"
 #include "parsing.h"
-#include "utils.h"
 
 BytecodeFile::BytecodeFile(const std::string &file_path)
     : stringtab_size(0), global_area_size(0), public_symbols_number(0),

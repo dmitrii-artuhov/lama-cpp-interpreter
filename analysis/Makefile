@@ -14,7 +14,6 @@ endif
 # Directories
 SRC_DIR = src
 BUILD_DIR = build
-RUNTIME_DIR = ../runtime
 COMMON_DIR = ../common
 
 # Source files (all .cpp files in src/ and common/)
@@ -26,16 +25,13 @@ COMMON_OBJECTS = $(COMMON_SOURCES:$(COMMON_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 OBJECTS = $(SRC_OBJECTS) $(COMMON_OBJECTS)
 
 # Target executable
-TARGET = $(BUILD_DIR)/interpreter
-
-# Runtime library
-RUNTIME_LIB = $(RUNTIME_DIR)/runtime.a
+TARGET = $(BUILD_DIR)/analysis
 
 COMMON_CXXFLAGS = $(ARCH) -std=c++17 -Wall -Wextra
-CPPFLAGS = -I$(RUNTIME_DIR) -I$(SRC_DIR) -I$(COMMON_DIR)
+CPPFLAGS = -I$(SRC_DIR) -I$(COMMON_DIR)
 
 SANITIZER_FLAGS = -fsanitize=address -fsanitize=undefined
-DEBUG_CXXFLAGS = -g -O0 -fno-omit-frame-pointer -fstack-protector-all $(SANITIZER_FLAGS) -DENABLE_LOG -DENABLE_PRINT_STACKS
+DEBUG_CXXFLAGS = -g -O0 -fno-omit-frame-pointer -fstack-protector-all $(SANITIZER_FLAGS) -DENABLE_LOG
 RELEASE_CXXFLAGS = -O3
 
 # Default to debug build
@@ -51,9 +47,9 @@ release: CXXFLAGS = $(COMMON_CXXFLAGS) $(RELEASE_CXXFLAGS)
 release: clean $(TARGET)
 	@echo "Release build complete: $(TARGET)"
 
-# Build the interpreter executable
-$(TARGET): $(OBJECTS) $(RUNTIME_LIB) | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJECTS) $(RUNTIME_LIB)
+# Build the analysis executable
+$(TARGET): $(OBJECTS) | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJECTS)
 
 # Compile .cpp files to .o files in build directory
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_DIR)
@@ -66,20 +62,10 @@ $(BUILD_DIR)/%.o: $(COMMON_DIR)/%.cpp | $(BUILD_DIR)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Ensure runtime library exists
-$(RUNTIME_LIB):
-	$(MAKE) -C $(RUNTIME_DIR)
-
 # Clean build artifacts
 .PHONY: clean
 clean:
 	$(RM) -r $(BUILD_DIR)
-
-# Run tests from regression folder
-.PHONY: test
-test: $(TARGET)
-	@echo "Running tests from ../regression..."
-	@./run_tests.sh ../regression
 
 # Clean test results
 .PHONY: clean_test
